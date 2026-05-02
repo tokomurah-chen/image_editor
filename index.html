@@ -58,7 +58,7 @@ label.tbtn{display:inline-block;}
   <input type="file" id="fileInput" accept="image/*">
   <label class="tbtn blue" for="fileInput">📁 載入圖片</label>
   <div class="fmtsep"></div>
-  <button class="tbtn orange active" id="btnErase" onclick="setMode('erase')">🖌 塗色框選</button>
+  <button class="tbtn orange active" id="btnErase" onclick="setMode('erase')">✏️ 框選建立文字</button>
   <button class="tbtn green" id="btnText" onclick="setMode('text')">＋ 文字方塊</button>
   <button class="tbtn" id="btnDrop" style="background:#0e7a6a;" onclick="openDropMenu()">💧 滴管</button>
   <div class="fmtsep"></div>
@@ -194,7 +194,7 @@ function setMode(m){
   hitCv.style.cursor=m==='erase'?'crosshair':m==='dropper'?'cell':'default';
   hitCv.style.pointerEvents=m==='text'?'none':'auto';
   tbLayer.style.pointerEvents=m==='text'?'auto':'none';
-  const tips={erase:'塗色框選模式 — 拖曳框選要蓋掉的文字',text:'文字方塊模式 — 雙擊方塊直接輸入',dropper:'💧 滴管模式 — 點圖片任意位置吸色'};
+  const tips={erase:'框選模式 — 拖曳框選要放文字的區域',text:'文字方塊模式 — 雙擊方塊直接輸入',dropper:'💧 滴管模式 — 點圖片任意位置吸色'};
   modetip.textContent='目前：'+(tips[m]||'');
   if(m!=='dropper'){dpPreview.style.display='none';}
 }
@@ -279,14 +279,11 @@ hitCv.addEventListener('mouseup',e=>{
   if(mode==='erase' && drawing){
     drawing=false;
     if(curSel && curSel.w>5 && curSel.h>5){
-      // Auto sample color + create textbox immediately
-      const cx=curSel.x+curSel.w/2, cy=curSel.y+curSel.h/2;
-      const h=sampleColor(cx,cy);
-      currentEraseColor=h;
-      // Apply erase rect immediately
-      eraseRects.push({...curSel,c:h});
-      // Create text box in same area
-      createTextboxAt(curSel.x, curSel.y, curSel.w, curSel.h, h);
+      // 直接建立文字方塊，不自動塗色
+      // 使用目前格式列的底色和字色
+      const bg = document.getElementById('fmtBg').value;
+      const fg = document.getElementById('fmtFg').value;
+      createTextboxAt(curSel.x, curSel.y, curSel.w, curSel.h, bg, fg);
       curSel=null; redrawUI(); redrawBase();
     } else {
       curSel=null; redrawUI();
@@ -306,9 +303,9 @@ function undoErase(){
 }
 
 // ── Create textbox ──
-function createTextboxAt(x,y,w,h,bgColor){
+function createTextboxAt(x,y,w,h,bgColor,fgColor){
   idCtr++;
-  const fg = getLuminance(bgColor)>128?'#000000':'#ffffff';
+  const fg = fgColor || document.getElementById('fmtFg').value || '#000000';
   const size=Math.max(12, Math.min(Math.round(h*0.45), 60));
   const b={id:idCtr,x,y,w,h,text:'',size,weight:'700',bold:true,
             font:"'Microsoft JhengHei','Noto Sans TC',sans-serif",
@@ -520,6 +517,15 @@ document.getElementById('canvas-wrap').addEventListener('mousedown',e=>{
     selId=null; fmtbar.style.display='none';
   }
 });
+
+// ── Transparent bg ──
+function setTransparentBg(){
+  if(!selId) return;
+  const b=boxes.find(x=>x.id===selId); if(!b) return;
+  b.bg='transparent';
+  const el=document.getElementById('b'+b.id);
+  if(el){ el.style.background='transparent'; el.style.border='2px dashed #ff6600'; }
+}
 
 // ── Export ──
 function exportImg(type){
