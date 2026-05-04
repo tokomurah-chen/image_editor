@@ -2,7 +2,9 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>圖片文字編輯器</title>
+<title>圖片文字編輯器（OCR魔術版）</title>
+<!-- Tesseract OCR -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif;background:#2b2b2b;height:100vh;display:flex;flex-direction:column;overflow:hidden;user-select:none;}
@@ -16,17 +18,29 @@ body{font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif;background:#2b2b
 .tbtn.green{background:#2d7a1f;}
 .tbtn.gray{background:#555;}
 .tbtn.red{background:#a02020;}
+.tbtn.magic{background:linear-gradient(135deg,#7b2ff7,#f107a3);animation:none;}
+.tbtn.magic.scanning{animation:pulse 1s infinite;}
 .tbtn.active{outline:2px solid #fff;outline-offset:1px;}
 label.tbtn{display:inline-block;}
-#modetip{font-size:11px;color:#aaa;padding:0 6px;}
+@keyframes pulse{0%,100%{filter:brightness(1);}50%{filter:brightness(1.4);}}
+#modetip{font-size:11px;color:#aaa;padding:0 6px;flex:1;}
 
-/* Format bar - shows when text box selected */
+/* OCR status bar */
+#ocrbar{display:none;align-items:center;gap:8px;padding:5px 12px;background:#1a0a2e;border-top:1px solid #5a2d9a;flex-shrink:0;}
+#ocrbar .ocr-icon{font-size:16px;}
+#ocrbar .ocr-text{font-size:12px;color:#cc88ff;flex:1;}
+#ocr-progress{height:4px;background:#3a1a6a;border-radius:2px;width:200px;overflow:hidden;}
+#ocr-bar{height:100%;background:linear-gradient(90deg,#7b2ff7,#f107a3);width:0%;transition:width .3s;}
+
+/* Format bar */
 #fmtbar{display:none;align-items:center;gap:6px;padding:5px 10px;background:#2a2a2a;border-top:1px solid #444;flex-shrink:0;flex-wrap:wrap;}
 #fmtbar select,#fmtbar input{font-size:12px;padding:3px 6px;border:1px solid #555;border-radius:4px;background:#333;color:#fff;}
 #fmtbar input[type=number]{width:58px;}
 #fmtbar input[type=color]{width:32px;height:26px;padding:1px;cursor:pointer;}
 .fmtlbl{font-size:11px;color:#aaa;}
 .fmtsep{width:1px;height:20px;background:#555;margin:0 3px;}
+.fmtbtn{font-size:12px;padding:3px 8px;border:none;border-radius:4px;cursor:pointer;color:#fff;background:#555;}
+.fmtbtn:hover{filter:brightness(1.2);}
 
 #main{display:flex;flex:1;overflow:hidden;}
 #canvas-wrap{flex:1;overflow:auto;background:#555;display:flex;align-items:flex-start;justify-content:center;padding:12px;}
@@ -35,21 +49,31 @@ label.tbtn{display:inline-block;}
 #ui-canvas{position:absolute;top:0;left:0;pointer-events:none;}
 #hit-canvas{position:absolute;top:0;left:0;}
 #tb-layer{position:absolute;top:0;left:0;width:100%;height:100%;}
-#no-img{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#bbb;font-size:14px;height:400px;width:100%;}
+#no-img{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#bbb;font-size:14px;height:100%;width:100%;}
 
 /* Text boxes */
 .tbox{position:absolute;border:2px dashed #4a90d9;cursor:move;min-width:30px;min-height:20px;}
-.tbox:hover{border-color:#7ab8f5;}
 .tbox.sel{border:2px solid #ff6600!important;box-shadow:0 0 0 2px rgba(255,102,0,0.3);}
-.tbox .tcontent{width:100%;height:100%;outline:none;border:none;background:transparent;resize:none;cursor:move;font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif;padding:4px 6px;word-break:break-all;line-height:1.4;overflow:hidden;}
+.tbox.ocr-detected{border:2px solid #aa44ff!important;box-shadow:0 0 0 2px rgba(170,68,255,0.3);}
+.tbox .tcontent{width:100%;height:100%;outline:none;border:none;background:transparent;cursor:move;font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif;padding:4px 6px;word-break:break-all;line-height:1.4;overflow:hidden;display:flex;align-items:center;justify-content:center;}
 .tbox.editing .tcontent{cursor:text;}
 .tbox .xbtn{position:absolute;top:-11px;right:-11px;width:22px;height:22px;background:#dd0000;color:#fff;border-radius:50%;font-size:13px;line-height:22px;text-align:center;cursor:pointer;display:none;font-weight:900;z-index:20;pointer-events:auto;}
 .tbox .rbtn{position:absolute;bottom:-6px;right:-6px;width:14px;height:14px;background:#ff6600;border-radius:3px;cursor:se-resize;display:none;z-index:20;pointer-events:auto;}
-.tbox.sel .xbtn,.tbox.sel .rbtn{display:block;}
+.tbox.sel .xbtn,.tbox.sel .rbtn,.tbox.ocr-detected .xbtn,.tbox.ocr-detected .rbtn{display:block;}
 
-/* Dropper preview */
-#dropper-preview{display:none;position:fixed;pointer-events:none;z-index:9999;border:2px solid #fff;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.5);width:80px;padding:4px 6px;background:#222;color:#fff;font-size:11px;font-family:monospace;align-items:center;gap:5px;}
+/* Dropper */
+#dropper-preview{display:none;position:fixed;pointer-events:none;z-index:9999;border:2px solid #fff;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.5);width:90px;padding:4px 6px;background:#222;color:#fff;font-size:11px;font-family:monospace;align-items:center;gap:5px;}
 #dp-swatch{width:18px;height:18px;border-radius:3px;flex-shrink:0;}
+
+/* OCR result popup */
+#ocr-popup{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:10px;padding:20px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.4);min-width:300px;max-width:480px;}
+#ocr-popup h3{font-size:14px;color:#333;margin-bottom:12px;}
+#ocr-result-text{width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:14px;font-family:'Microsoft JhengHei',sans-serif;min-height:80px;resize:vertical;}
+.ocr-actions{display:flex;gap:8px;margin-top:12px;justify-content:flex-end;}
+.ocr-actions button{padding:7px 16px;border:none;border-radius:5px;cursor:pointer;font-size:13px;font-weight:700;}
+.ocr-ok{background:#7b2ff7;color:#fff;}
+.ocr-ok:hover{background:#5a1fc0;}
+.ocr-cancel{background:#aaa;color:#fff;}
 </style>
 </head>
 <body>
@@ -58,19 +82,27 @@ label.tbtn{display:inline-block;}
   <input type="file" id="fileInput" accept="image/*">
   <label class="tbtn blue" for="fileInput">📁 載入圖片</label>
   <div class="fmtsep"></div>
-  <button class="tbtn orange active" id="btnErase" onclick="setMode('erase')">✏️ 框選建立文字</button>
-  <button class="tbtn green" id="btnText" onclick="setMode('text')">＋ 文字方塊</button>
+  <button class="tbtn magic active" id="btnMagic" onclick="setMode('magic')">✨ 魔術框選（OCR）</button>
+  <button class="tbtn orange" id="btnErase" onclick="setMode('erase')">🖌 塗色蓋字</button>
+  <button class="tbtn green" id="btnText" onclick="setMode('text')">＋ 空白文字方塊</button>
   <button class="tbtn" id="btnDrop" style="background:#0e7a6a;" onclick="openDropMenu()">💧 滴管</button>
   <div class="fmtsep"></div>
-  <button class="tbtn gray" onclick="undoErase()">↩ 復原塗色</button>
-  <button class="tbtn red" onclick="deleteSelected()">🗑 刪除方塊</button>
+  <button class="tbtn gray" onclick="undoLast()">↩ 復原</button>
+  <button class="tbtn red" onclick="deleteSelected()">🗑 刪除</button>
   <div class="fmtsep"></div>
   <button class="tbtn" style="background:#5a3080;" onclick="exportImg('png')">⬇ PNG</button>
   <button class="tbtn" style="background:#7a4010;" onclick="exportImg('jpg')">⬇ JPG</button>
-  <span id="modetip">目前：塗色框選模式</span>
+  <span id="modetip">✨ 魔術框選：框選圖片上的文字，自動辨識內容讓你修改！</span>
 </div>
 
-<!-- Format bar shown when text box is selected -->
+<!-- OCR status -->
+<div id="ocrbar">
+  <span class="ocr-icon">🔮</span>
+  <span class="ocr-text" id="ocr-status-text">正在辨識文字...</span>
+  <div id="ocr-progress"><div id="ocr-bar"></div></div>
+</div>
+
+<!-- Format bar -->
 <div id="fmtbar">
   <span class="fmtlbl">字型：</span>
   <select id="fmtFont" onchange="applyFmt()">
@@ -79,21 +111,20 @@ label.tbtn{display:inline-block;}
     <option value="'SimSun','新細明體',serif">新細明體</option>
     <option value="Arial,sans-serif">Arial</option>
     <option value="'Times New Roman',serif">Times New Roman</option>
-    <option value="Georgia,serif">Georgia</option>
   </select>
   <span class="fmtlbl">大小：</span>
-  <input type="number" id="fmtSize" value="20" min="6" max="300" onchange="applyFmt()">
-  <span class="fmtlbl">px</span>
+  <input type="number" id="fmtSize" value="20" min="6" max="300" onchange="applyFmt()">px
   <div class="fmtsep"></div>
-  <button id="fmtBold" onclick="toggleBold()" style="background:#555;color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;font-weight:700;font-size:13px;">B</button>
+  <button id="fmtBold" class="fmtbtn" onclick="toggleBold()" style="font-weight:700;">B</button>
   <div class="fmtsep"></div>
   <span class="fmtlbl">底色：</span>
-  <input type="color" id="fmtBg" value="#3a7020" onchange="applyFmt()">
-  <button onclick="startDropper('fmt_bg')" style="background:#0e7a6a;color:#fff;border:none;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;">💧</button>
+  <input type="color" id="fmtBg" value="#ffffff" onchange="applyFmt()">
+  <button class="fmtbtn" onclick="startDropper('fmt_bg')" style="background:#0e7a6a;">💧</button>
+  <button class="fmtbtn" onclick="setTransparentBg()">透明</button>
   <div class="fmtsep"></div>
   <span class="fmtlbl">字色：</span>
-  <input type="color" id="fmtFg" value="#ffffff" onchange="applyFmt()">
-  <button onclick="startDropper('fmt_fg')" style="background:#0e7a6a;color:#fff;border:none;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;">💧</button>
+  <input type="color" id="fmtFg" value="#000000" onchange="applyFmt()">
+  <button class="fmtbtn" onclick="startDropper('fmt_fg')" style="background:#0e7a6a;">💧</button>
   <div class="fmtsep"></div>
   <span class="fmtlbl">對齊：</span>
   <select id="fmtAlign" onchange="applyFmt()">
@@ -102,21 +133,30 @@ label.tbtn{display:inline-block;}
     <option value="right">靠右</option>
   </select>
   <div class="fmtsep"></div>
-  <span style="font-size:11px;color:#aaa;">💡 雙擊方塊可直接編輯文字</span>
+  <span style="font-size:11px;color:#aaa;">💡 雙擊方塊直接編輯文字</span>
 </div>
 
-<!-- Dropper preview tooltip -->
-<div id="dropper-preview">
-  <div id="dp-swatch"></div>
-  <span id="dp-hex">#------</span>
+<!-- Dropper -->
+<div id="dropper-preview"><div id="dp-swatch"></div><span id="dp-hex">#------</span></div>
+
+<!-- OCR Result popup -->
+<div id="ocr-popup">
+  <h3>✨ 辨識結果 — 確認後可直接修改</h3>
+  <textarea id="ocr-result-text" placeholder="辨識中..."></textarea>
+  <div style="font-size:11px;color:#888;margin-top:6px;">💡 可以直接在上方修改文字內容</div>
+  <div class="ocr-actions">
+    <button class="ocr-cancel" onclick="cancelOcr()">取消</button>
+    <button class="ocr-ok" onclick="confirmOcr()">✔ 確認套用</button>
+  </div>
 </div>
 
 <div id="main">
   <div id="canvas-wrap">
     <div id="no-img">
       <div style="font-size:52px;">🖼️</div>
-      <div>請點左上角「📁 載入圖片」開始</div>
+      <div style="font-size:16px;">請點「📁 載入圖片」開始</div>
       <div style="font-size:12px;color:#999;">支援 PNG / JPG</div>
+      <div style="font-size:12px;color:#cc88ff;margin-top:4px;">✨ 載入後用「魔術框選」直接框選圖片上的文字來修改！</div>
     </div>
     <div id="stage">
       <canvas id="base-canvas"></canvas>
@@ -130,11 +170,13 @@ label.tbtn{display:inline-block;}
 <script>
 // ── State ──
 let img=null, eraseRects=[], boxes=[], selId=null, idCtr=0;
-let mode='erase', dropperTarget=null, prevMode='erase';
+let mode='magic', dropperTarget=null, prevMode='magic';
 let drawing=false, sx,sy, curSel=null;
 let dragId=null, dragOx,dragOy;
 let resId=null, resW0,resH0,resMx0,reMy0;
-let isBold = false;
+let isBold=false;
+let pendingOcrSel=null, pendingOcrBoxId=null;
+let ocrWorker=null;
 
 const baseCv=document.getElementById('base-canvas');
 const uiCv=document.getElementById('ui-canvas');
@@ -146,7 +188,9 @@ const tbLayer=document.getElementById('tb-layer');
 const noImg=document.getElementById('no-img');
 const modetip=document.getElementById('modetip');
 const fmtbar=document.getElementById('fmtbar');
+const ocrbar=document.getElementById('ocrbar');
 const dpPreview=document.getElementById('dropper-preview');
+const ocrPopup=document.getElementById('ocr-popup');
 
 // ── Load image ──
 document.getElementById('fileInput').onchange=e=>{
@@ -178,9 +222,11 @@ function redrawBase(){
 function redrawUI(){
   uCtx.clearRect(0,0,uiCv.width,uiCv.height);
   if(curSel){
-    uCtx.strokeStyle='rgba(255,100,0,.9)'; uCtx.lineWidth=2; uCtx.setLineDash([5,3]);
+    const color = mode==='magic'?'rgba(130,50,255,.9)':'rgba(255,100,0,.9)';
+    const fill  = mode==='magic'?'rgba(130,50,255,.08)':'rgba(255,100,0,.08)';
+    uCtx.strokeStyle=color; uCtx.lineWidth=2; uCtx.setLineDash([5,3]);
     uCtx.strokeRect(curSel.x,curSel.y,curSel.w,curSel.h);
-    uCtx.fillStyle='rgba(255,100,0,.08)'; uCtx.fillRect(curSel.x,curSel.y,curSel.w,curSel.h);
+    uCtx.fillStyle=fill; uCtx.fillRect(curSel.x,curSel.y,curSel.w,curSel.h);
     uCtx.setLineDash([]);
   }
 }
@@ -188,61 +234,107 @@ function redrawUI(){
 // ── Modes ──
 function setMode(m){
   mode=m;
-  ['btnErase','btnText','btnDrop'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  ['btnMagic','btnErase','btnText','btnDrop'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.classList.remove('active');
+  });
+  if(m==='magic') document.getElementById('btnMagic').classList.add('active');
   if(m==='erase') document.getElementById('btnErase').classList.add('active');
   if(m==='text')  document.getElementById('btnText').classList.add('active');
-  hitCv.style.cursor=m==='erase'?'crosshair':m==='dropper'?'cell':'default';
+  hitCv.style.cursor=m==='magic'?'crosshair':m==='erase'?'crosshair':m==='dropper'?'cell':'default';
   hitCv.style.pointerEvents=m==='text'?'none':'auto';
   tbLayer.style.pointerEvents=m==='text'?'auto':'none';
-  const tips={erase:'框選模式 — 拖曳框選要放文字的區域',text:'文字方塊模式 — 雙擊方塊直接輸入',dropper:'💧 滴管模式 — 點圖片任意位置吸色'};
-  modetip.textContent='目前：'+(tips[m]||'');
-  if(m!=='dropper'){dpPreview.style.display='none';}
+  const tips={
+    magic:'✨ 魔術框選：框選圖片上的文字 → 自動辨識 → 可直接修改！',
+    erase:'🖌 塗色蓋字：框選後填色蓋住原文字',
+    text:'＋ 文字方塊：新增空白文字方塊',
+    dropper:'💧 滴管模式 — 點擊任意位置吸色'
+  };
+  modetip.textContent=tips[m]||'';
+  if(m!=='dropper') dpPreview.style.display='none';
 }
 
-// ── Dropper ──
-function openDropMenu(){
-  if(!img){alert('請先載入圖片！');return;}
-  const menu=document.createElement('div');
-  menu.style.cssText='position:fixed;top:55px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid #ccc;border-radius:8px;padding:14px;z-index:999;box-shadow:0 4px 20px rgba(0,0,0,.3);min-width:230px;';
-  menu.innerHTML=`
-    <div style="font-size:13px;font-weight:700;margin-bottom:10px;">💧 滴管 — 吸色套用到：</div>
-    <button onclick="startDropper('erase');this.closest('div[style]').remove()" style="width:100%;margin:3px 0;padding:8px;background:#b06010;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">🖌 塗色顏色</button>
-    <button onclick="startDropper('fmt_bg');this.closest('div[style]').remove()" style="width:100%;margin:3px 0;padding:8px;background:#2d7a1f;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">🟩 文字底色</button>
-    <button onclick="startDropper('fmt_fg');this.closest('div[style]').remove()" style="width:100%;margin:3px 0;padding:8px;background:#1a3a8a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">🔤 文字字色</button>
-    <button onclick="this.closest('div[style]').remove()" style="width:100%;margin:6px 0 0;padding:6px;background:#aaa;color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer;">取消</button>`;
-  document.body.appendChild(menu);
+// ── OCR ──
+async function runOCR(sel){
+  // Crop the selected region from base canvas
+  const cropCv=document.createElement('canvas');
+  const pad=4;
+  cropCv.width=Math.round(sel.w)+pad*2;
+  cropCv.height=Math.round(sel.h)+pad*2;
+  const cropCtx=cropCv.getContext('2d');
+  // White background for better OCR
+  cropCtx.fillStyle='#ffffff';
+  cropCtx.fillRect(0,0,cropCv.width,cropCv.height);
+  cropCtx.drawImage(baseCv,
+    Math.round(sel.x), Math.round(sel.y), Math.round(sel.w), Math.round(sel.h),
+    pad, pad, Math.round(sel.w), Math.round(sel.h)
+  );
+
+  ocrbar.style.display='flex';
+  document.getElementById('ocr-status-text').textContent='🔮 正在辨識文字...';
+  document.getElementById('ocr-bar').style.width='0%';
+  document.getElementById('btnMagic').classList.add('scanning');
+
+  try {
+    const result = await Tesseract.recognize(cropCv, 'chi_tra+chi_sim+eng', {
+      logger: m => {
+        if(m.status==='recognizing text'){
+          const pct=Math.round((m.progress||0)*100);
+          document.getElementById('ocr-bar').style.width=pct+'%';
+          document.getElementById('ocr-status-text').textContent=`🔮 辨識中 ${pct}%...`;
+        }
+      }
+    });
+    const text=(result.data.text||'').trim();
+    ocrbar.style.display='none';
+    document.getElementById('btnMagic').classList.remove('scanning');
+    return text;
+  } catch(err){
+    ocrbar.style.display='none';
+    document.getElementById('btnMagic').classList.remove('scanning');
+    console.error(err);
+    return '';
+  }
 }
 
-function startDropper(target){
-  if(!img){alert('請先載入圖片！');return;}
-  dropperTarget=target;
-  prevMode=mode==='dropper'?prevMode:mode;
-  mode='dropper';
-  hitCv.style.cursor='cell'; hitCv.style.pointerEvents='auto'; tbLayer.style.pointerEvents='none';
-  modetip.textContent='💧 滴管：移動到圖片上選色，點擊確認 | Esc 取消';
-  dpPreview.style.display='flex';
-  document.addEventListener('keydown',escDropper);
+function showOcrPopup(text, sel){
+  pendingOcrSel={...sel};
+  document.getElementById('ocr-result-text').value=text||'';
+  ocrPopup.style.display='block';
 }
 
-function escDropper(e){if(e.key==='Escape'){exitDropper();}}
-function exitDropper(){
-  document.removeEventListener('keydown',escDropper);
-  dpPreview.style.display='none';
-  setMode(prevMode);
+function cancelOcr(){
+  ocrPopup.style.display='none';
+  pendingOcrSel=null;
+  curSel=null; redrawUI();
 }
 
-function sampleColor(ix,iy){
-  const x=Math.max(0,Math.min(Math.round(ix),baseCv.width-1));
-  const y=Math.max(0,Math.min(Math.round(iy),baseCv.height-1));
-  const d=bCtx.getImageData(x,y,1,1).data;
-  return '#'+[d[0],d[1],d[2]].map(v=>v.toString(16).padStart(2,'0')).join('');
+function confirmOcr(){
+  const text=document.getElementById('ocr-result-text').value.trim();
+  ocrPopup.style.display='none';
+  if(!pendingOcrSel) return;
+  const sel=pendingOcrSel; pendingOcrSel=null;
+
+  // Sample bg color from selection area
+  const cx=Math.round(sel.x+sel.w/2);
+  const cy=Math.round(sel.y+sel.h/2);
+  const bg=sampleColor(cx, cy);
+  const fg=getLuminance(bg)>128?'#000000':'#ffffff';
+
+  // Cover original text
+  eraseRects.push({x:sel.x,y:sel.y,w:sel.w,h:sel.h,c:bg});
+  redrawBase();
+
+  // Create textbox with OCR text
+  createTextboxAt(sel.x,sel.y,sel.w,sel.h,bg,fg,text);
+  curSel=null; redrawUI();
 }
 
-// ── Hit canvas events ──
+// ── Hit canvas ──
 function getPos(e){
   const rect=hitCv.getBoundingClientRect();
   const sc=hitCv.width/rect.width;
-  return{x:(e.clientX-rect.left)*sc, y:(e.clientY-rect.top)*sc};
+  return{x:(e.clientX-rect.left)*sc,y:(e.clientY-rect.top)*sc};
 }
 
 hitCv.addEventListener('mousemove',e=>{
@@ -255,7 +347,7 @@ hitCv.addEventListener('mousemove',e=>{
     dpPreview.style.top=(e.clientY-10)+'px';
     return;
   }
-  if(drawing && mode==='erase'){
+  if(drawing&&(mode==='magic'||mode==='erase')){
     const p=getPos(e);
     curSel={x:Math.min(sx,p.x),y:Math.min(sy,p.y),w:Math.abs(p.x-sx),h:Math.abs(p.y-sy)};
     redrawUI();
@@ -267,108 +359,93 @@ hitCv.addEventListener('mousedown',e=>{
   const p=getPos(e);
   if(mode==='dropper'){
     const h=sampleColor(p.x,p.y);
-    if(dropperTarget==='erase'){document.getElementById('eraseColHidden').value=h; currentEraseColor=h;}
+    if(dropperTarget==='erase'){currentEraseColor=h;}
     else if(dropperTarget==='fmt_bg'){document.getElementById('fmtBg').value=h; applyFmt();}
     else if(dropperTarget==='fmt_fg'){document.getElementById('fmtFg').value=h; applyFmt();}
     exitDropper(); return;
   }
-  if(mode==='erase'){drawing=true; sx=p.x; sy=p.y; curSel={x:p.x,y:p.y,w:0,h:0};}
+  if(mode==='magic'||mode==='erase'){
+    drawing=true; sx=p.x; sy=p.y; curSel={x:p.x,y:p.y,w:0,h:0};
+  }
 });
 
-hitCv.addEventListener('mouseup',e=>{
-  if(mode==='erase' && drawing){
+hitCv.addEventListener('mouseup',async e=>{
+  if((mode==='magic'||mode==='erase')&&drawing){
     drawing=false;
-    if(curSel && curSel.w>5 && curSel.h>5){
-      // 直接建立文字方塊，不自動塗色
-      // 使用目前格式列的底色和字色
-      const bg = document.getElementById('fmtBg').value;
-      const fg = document.getElementById('fmtFg').value;
-      createTextboxAt(curSel.x, curSel.y, curSel.w, curSel.h, bg, fg);
-      curSel=null; redrawUI(); redrawBase();
+    if(curSel&&curSel.w>8&&curSel.h>8){
+      if(mode==='magic'){
+        // OCR mode: recognize then show popup
+        const sel={...curSel};
+        const text=await runOCR(sel);
+        showOcrPopup(text,sel);
+      } else {
+        // Erase mode: just cover with color
+        const bg=sampleColor(curSel.x+curSel.w/2, curSel.y+curSel.h/2);
+        eraseRects.push({...curSel,c:bg});
+        curSel=null; redrawUI(); redrawBase();
+      }
     } else {
       curSel=null; redrawUI();
     }
   }
 });
 
-// ── Erase color ──
+// ── Erase ──
 let currentEraseColor='#f0f7e6';
-// Hidden input for erase color (dropper target)
-const eraseHidden=document.createElement('input');
-eraseHidden.type='color'; eraseHidden.id='eraseColHidden';
-eraseHidden.style.display='none'; document.body.appendChild(eraseHidden);
-
-function undoErase(){
-  if(eraseRects.length){eraseRects.pop(); redrawBase(); modetip.textContent='已復原上一次塗色';}
+function undoLast(){
+  if(eraseRects.length){eraseRects.pop(); redrawBase();}
 }
 
 // ── Create textbox ──
-function createTextboxAt(x,y,w,h,bgColor,fgColor){
+function createTextboxAt(x,y,w,h,bgColor,fgColor,text){
   idCtr++;
-  const fg = fgColor || document.getElementById('fmtFg').value || '#000000';
-  const size=Math.max(12, Math.min(Math.round(h*0.45), 60));
-  const b={id:idCtr,x,y,w,h,text:'',size,weight:'700',bold:true,
-            font:"'Microsoft JhengHei','Noto Sans TC',sans-serif",
-            bg:bgColor,fg,align:'center'};
+  const bg=bgColor||document.getElementById('fmtBg').value||'#ffffff';
+  const fg=fgColor||document.getElementById('fmtFg').value||'#000000';
+  const size=Math.max(12,Math.min(Math.round(h*0.45),60));
+  const b={id:idCtr,x,y,w,h,
+    text:text||'',size,bold:isBold,
+    font:"'Microsoft JhengHei','Noto Sans TC',sans-serif",
+    bg,fg,align:'center',transparent:false};
   boxes.push(b);
   const el=makeTboxEl(b);
   tbLayer.appendChild(el);
   selectBox(b.id);
   setMode('text');
-  // Auto focus for typing
+  // Auto focus
   setTimeout(()=>{
     const tc=el.querySelector('.tcontent');
     el.classList.add('editing');
-    tc.style.cursor='text';
-    tc.contentEditable='true';
+    tc.contentEditable='true'; tc.style.cursor='text';
     tc.focus();
     const range=document.createRange();
-    range.selectNodeContents(tc);
-    range.collapse(false);
-    const sel2=window.getSelection();
-    sel2.removeAllRanges(); sel2.addRange(range);
-  },50);
-}
-
-function getLuminance(hex){
-  const r=parseInt(hex.slice(1,3),16);
-  const g=parseInt(hex.slice(3,5),16);
-  const b=parseInt(hex.slice(5,7),16);
-  return (r*299+g*587+b*114)/1000;
+    range.selectNodeContents(tc); range.collapse(false);
+    const s=window.getSelection(); s.removeAllRanges(); s.addRange(range);
+  },80);
+  return b;
 }
 
 function makeTboxEl(b){
   const sc=getScale();
   const el=document.createElement('div');
-  el.id='b'+b.id; el.className='tbox';
+  el.id='b'+b.id; el.className='tbox'+(b.text?'  ocr-detected':'');
   applyTboxStyle(el,b,sc);
 
   const tc=document.createElement('div');
   tc.className='tcontent';
   tc.contentEditable='false';
-  tc.style.fontSize=Math.round(b.size*sc)+'px';
-  tc.style.fontWeight=b.bold?'700':'400';
-  tc.style.color=b.fg;
-  tc.style.fontFamily=b.font;
-  tc.style.textAlign=b.align;
-  tc.style.display='flex';
-  tc.style.alignItems='center';
-  tc.style.justifyContent=b.align==='left'?'flex-start':b.align==='right'?'flex-end':'center';
+  applyTcStyle(tc,b,sc);
   tc.textContent=b.text||'';
-  tc.oninput=()=>{ b.text=tc.innerText; };
+  tc.oninput=()=>{b.text=tc.innerText;};
   el.appendChild(tc);
 
-  // Double click to edit
   el.ondblclick=ev=>{
     ev.stopPropagation();
     selectBox(b.id);
     el.classList.add('editing');
-    tc.contentEditable='true';
-    tc.style.cursor='text';
+    tc.contentEditable='true'; tc.style.cursor='text';
     tc.focus();
   };
 
-  // Single click to select
   el.onmousedown=ev=>{
     if(ev.target.classList.contains('xbtn')||ev.target.classList.contains('rbtn')) return;
     if(el.classList.contains('editing')) return;
@@ -378,11 +455,9 @@ function makeTboxEl(b){
     dragId=b.id; dragOx=ev.clientX-r.left; dragOy=ev.clientY-r.top;
   };
 
-  // Blur = stop editing
   tc.onblur=()=>{
     el.classList.remove('editing');
-    tc.contentEditable='false';
-    tc.style.cursor='move';
+    tc.contentEditable='false'; tc.style.cursor='move';
     b.text=tc.innerText;
   };
 
@@ -398,7 +473,6 @@ function makeTboxEl(b){
     resId=b.id; resW0=b.w; resH0=b.h; resMx0=ev.clientX; reMy0=ev.clientY;
   };
   el.appendChild(rbtn);
-
   return el;
 }
 
@@ -407,28 +481,36 @@ function applyTboxStyle(el,b,sc){
   el.style.top=Math.round(b.y*sc)+'px';
   el.style.width=Math.round(b.w*sc)+'px';
   el.style.height=Math.round(b.h*sc)+'px';
-  el.style.background=b.bg;
+  el.style.background=b.transparent?'transparent':b.bg;
 }
 
-function getScale(){
-  return baseCv.getBoundingClientRect().width/baseCv.width;
+function applyTcStyle(tc,b,sc){
+  tc.style.fontSize=Math.round(b.size*sc)+'px';
+  tc.style.fontWeight=b.bold?'700':'400';
+  tc.style.color=b.fg;
+  tc.style.fontFamily=b.font;
+  tc.style.textAlign=b.align;
+  tc.style.justifyContent=b.align==='left'?'flex-start':b.align==='right'?'flex-end':'center';
 }
+
+function getScale(){return baseCv.getBoundingClientRect().width/baseCv.width;}
 
 function selectBox(id){
   selId=id;
-  document.querySelectorAll('.tbox').forEach(el=>el.classList.remove('sel'));
+  document.querySelectorAll('.tbox').forEach(el=>{el.classList.remove('sel');});
   const el=document.getElementById('b'+id);
   if(el) el.classList.add('sel');
   const b=boxes.find(x=>x.id===id);
   if(b){
     document.getElementById('fmtFont').value=b.font;
     document.getElementById('fmtSize').value=b.size;
-    document.getElementById('fmtBg').value=b.bg;
+    document.getElementById('fmtBg').value=b.transparent?'#ffffff':b.bg;
     document.getElementById('fmtFg').value=b.fg;
     document.getElementById('fmtAlign').value=b.align;
     isBold=b.bold;
-    document.getElementById('fmtBold').style.background=b.bold?'#fff':'#555';
-    document.getElementById('fmtBold').style.color=b.bold?'#333':'#fff';
+    const bb=document.getElementById('fmtBold');
+    bb.style.background=b.bold?'#fff':'#555';
+    bb.style.color=b.bold?'#333':'#fff';
     fmtbar.style.display='flex';
   }
 }
@@ -440,9 +522,7 @@ function removeBox(id){
   if(selId===id){selId=null; fmtbar.style.display='none';}
 }
 
-function deleteSelected(){
-  if(selId) removeBox(selId);
-}
+function deleteSelected(){if(selId) removeBox(selId);}
 
 function applyFmt(){
   if(!selId) return;
@@ -456,16 +536,9 @@ function applyFmt(){
   const sc=getScale();
   const el=document.getElementById('b'+b.id);
   if(el){
-    applyTboxStyle(el,b,sc);
+    if(!b.transparent) el.style.background=b.bg;
     const tc=el.querySelector('.tcontent');
-    if(tc){
-      tc.style.fontSize=Math.round(b.size*sc)+'px';
-      tc.style.fontWeight=b.bold?'700':'400';
-      tc.style.color=b.fg;
-      tc.style.fontFamily=b.font;
-      tc.style.textAlign=b.align;
-      tc.style.justifyContent=b.align==='left'?'flex-start':b.align==='right'?'flex-end':'center';
-    }
+    if(tc) applyTcStyle(tc,b,sc);
   }
 }
 
@@ -477,11 +550,56 @@ function toggleBold(){
   applyFmt();
 }
 
-// Standalone add textbox (toolbar button)
-function addTextboxManual(){
+function setTransparentBg(){
+  if(!selId) return;
+  const b=boxes.find(x=>x.id===selId); if(!b) return;
+  b.transparent=!b.transparent;
+  const el=document.getElementById('b'+b.id);
+  if(el) el.style.background=b.transparent?'transparent':b.bg;
+}
+
+// ── Dropper ──
+function openDropMenu(){
   if(!img){alert('請先載入圖片！');return;}
-  const cx=baseCv.width*0.25, cy=baseCv.height*0.4;
-  createTextboxAt(cx,cy,200,60,'#3a7020');
+  const menu=document.createElement('div');
+  menu.style.cssText='position:fixed;top:55px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid #ccc;border-radius:8px;padding:14px;z-index:9998;box-shadow:0 4px 20px rgba(0,0,0,.3);min-width:230px;';
+  menu.innerHTML=`
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px;">💧 滴管 — 吸色套用到：</div>
+    <button onclick="startDropper('fmt_bg');this.closest('div').remove()" style="width:100%;margin:3px 0;padding:8px;background:#2d7a1f;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">🟩 文字底色</button>
+    <button onclick="startDropper('fmt_fg');this.closest('div').remove()" style="width:100%;margin:3px 0;padding:8px;background:#1a3a8a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">🔤 文字字色</button>
+    <button onclick="this.closest('div').remove()" style="width:100%;margin:6px 0 0;padding:6px;background:#aaa;color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer;">取消</button>`;
+  document.body.appendChild(menu);
+}
+
+function startDropper(target){
+  if(!img){alert('請先載入圖片！');return;}
+  dropperTarget=target; prevMode=mode==='dropper'?prevMode:mode;
+  mode='dropper';
+  hitCv.style.cursor='cell'; hitCv.style.pointerEvents='auto';
+  tbLayer.style.pointerEvents='none';
+  dpPreview.style.display='flex';
+  modetip.textContent='💧 點圖片任意位置吸色 | Esc 取消';
+  document.addEventListener('keydown',escDropper);
+}
+function escDropper(e){if(e.key==='Escape') exitDropper();}
+function exitDropper(){
+  document.removeEventListener('keydown',escDropper);
+  dpPreview.style.display='none';
+  setMode(prevMode);
+}
+
+function sampleColor(ix,iy){
+  const x=Math.max(0,Math.min(Math.round(ix),baseCv.width-1));
+  const y=Math.max(0,Math.min(Math.round(iy),baseCv.height-1));
+  const d=bCtx.getImageData(x,y,1,1).data;
+  return '#'+[d[0],d[1],d[2]].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+
+function getLuminance(hex){
+  const r=parseInt(hex.slice(1,3),16);
+  const g=parseInt(hex.slice(3,5),16);
+  const b=parseInt(hex.slice(5,7),16);
+  return (r*299+g*587+b*114)/1000;
 }
 
 // ── Drag/Resize ──
@@ -504,48 +622,33 @@ document.addEventListener('mousemove',e=>{
       el.style.width=Math.round(b.w*sc)+'px';
       el.style.height=Math.round(b.h*sc)+'px';
       const tc=el.querySelector('.tcontent');
-      if(tc) tc.style.fontSize=Math.round(b.size*sc)+'px';
+      if(tc){tc.style.fontSize=Math.round(b.size*sc)+'px';}
     }
   }
 });
 document.addEventListener('mouseup',()=>{dragId=null;resId=null;});
-
-// Click outside deselects
 document.getElementById('canvas-wrap').addEventListener('mousedown',e=>{
-  if(!e.target.closest('.tbox')){
+  if(!e.target.closest('.tbox')&&!e.target.closest('#ocr-popup')){
     document.querySelectorAll('.tbox').forEach(el=>el.classList.remove('sel'));
     selId=null; fmtbar.style.display='none';
   }
 });
 
-// ── Transparent bg ──
-function setTransparentBg(){
-  if(!selId) return;
-  const b=boxes.find(x=>x.id===selId); if(!b) return;
-  b.bg='transparent';
-  const el=document.getElementById('b'+b.id);
-  if(el){ el.style.background='transparent'; el.style.border='2px dashed #ff6600'; }
-}
-
 // ── Export ──
 function exportImg(type){
   if(!img){alert('請先載入圖片！');return;}
-  // Flatten text boxes to canvas
   const ec=document.createElement('canvas');
   ec.width=baseCv.width; ec.height=baseCv.height;
   const ectx=ec.getContext('2d');
   ectx.drawImage(baseCv,0,0);
   boxes.forEach(b=>{
-    ectx.fillStyle=b.bg;
-    ectx.fillRect(b.x,b.y,b.w,b.h);
+    if(!b.transparent){ectx.fillStyle=b.bg; ectx.fillRect(b.x,b.y,b.w,b.h);}
     ectx.fillStyle=b.fg;
-    const weight=b.bold?'700':'400';
-    ectx.font=weight+' '+b.size+'px '+b.font;
+    ectx.font=(b.bold?'700 ':'400 ')+b.size+'px '+b.font;
     ectx.textAlign=b.align==='left'?'left':b.align==='right'?'right':'center';
     ectx.textBaseline='middle';
     const lines=b.text.split('\n');
-    const lh=b.size*1.4;
-    const total=lines.length*lh;
+    const lh=b.size*1.4; const total=lines.length*lh;
     let ty=b.y+(b.h-total)/2+lh/2;
     let tx=b.align==='center'?b.x+b.w/2:b.align==='left'?b.x+8:b.x+b.w-8;
     lines.forEach(l=>{ectx.fillText(l,tx,ty);ty+=lh;});
@@ -556,7 +659,7 @@ function exportImg(type){
   a.click();
 }
 
-setMode('erase');
+setMode('magic');
 </script>
 </body>
 </html>
