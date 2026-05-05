@@ -2,138 +2,159 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>圖片文字編輯器</title>
 <style>
+:root{--pw:340px;--th:52px;}
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif;background:#2b2b2b;height:100vh;display:flex;flex-direction:column;overflow:hidden;user-select:none;}
+html,body{height:100%;overflow:hidden;font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif;background:#1e1e2e;}
 
 /* Toolbar */
-#toolbar{display:flex;align-items:center;gap:5px;padding:6px 10px;background:#1a1a1a;flex-shrink:0;flex-wrap:wrap;}
+#toolbar{position:fixed;top:0;left:0;right:0;height:var(--th);background:#111827;border-bottom:2px solid #374151;display:flex;align-items:center;gap:7px;padding:0 12px;z-index:100;}
 #toolbar input[type=file]{display:none;}
-.tbtn{font-size:12px;padding:5px 12px;border:none;border-radius:5px;cursor:pointer;font-weight:700;color:#fff;}
+.tbtn{font-size:12px;padding:6px 12px;border:none;border-radius:6px;cursor:pointer;font-weight:700;color:#fff;white-space:nowrap;transition:filter .15s;}
 .tbtn:hover{filter:brightness(1.2);}
-.tbtn.blue{background:#3a80c8;}
-.tbtn.orange{background:#b06010;}
-.tbtn.gray{background:#555;}
-.tbtn.red{background:#a02020;}
-.tbtn.purple{background:#5a3080;}
-.tbtn.brown{background:#7a4010;}
-.tbtn.active{outline:2px solid #fff;outline-offset:1px;}
-label.tbtn{display:inline-block;}
-.sep{width:1px;height:22px;background:#444;margin:0 3px;}
-#modetip{font-size:11px;color:#aaa;padding:0 6px;flex:1;}
+.tbtn.blue{background:#2563eb;}
+.tbtn.gray{background:#4b5563;}
+.tbtn.red{background:#dc2626;}
+label.tbtn{display:inline-flex;align-items:center;}
+.tsep{width:1px;height:26px;background:#374151;margin:0 3px;flex-shrink:0;}
+#zdisplay{font-size:12px;color:#9ca3af;min-width:42px;}
+#sstatus{font-size:11px;margin-left:auto;white-space:nowrap;padding:4px 10px;border-radius:5px;background:#1f2937;color:#6b7280;}
+#sstatus.unsaved{color:#f87171;background:#3b1f1f;}
+#sstatus.saved{color:#4ade80;background:#1a3b2a;}
 
-/* Main layout */
-#main{display:flex;flex:1;overflow:hidden;}
-
-/* Canvas */
-#cvwrap{flex:1;overflow:auto;background:#555;display:flex;align-items:flex-start;justify-content:center;padding:14px;}
-#stage{position:relative;display:none;flex-shrink:0;}
-#base-canvas{display:block;}
+/* Layout */
+#main{position:fixed;top:var(--th);left:0;right:var(--pw);bottom:0;overflow:hidden;background:#2d2d3f;}
+#cvwrap{width:100%;height:100%;overflow:auto;padding:20px;cursor:default;}
+#cvwrap.panning{cursor:grab;}
+#stage{position:relative;flex-shrink:0;transform-origin:top left;display:none;}
+#base-canvas{display:block;box-shadow:0 6px 28px rgba(0,0,0,.55);}
 #ui-canvas{position:absolute;top:0;left:0;pointer-events:none;}
-#hit-canvas{position:absolute;top:0;left:0;cursor:crosshair;}
-#tb-layer{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;}
-#no-img{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#bbb;font-size:14px;height:100%;width:100%;}
+#hit-canvas{position:absolute;top:0;left:0;}
+#tb-layer{position:absolute;top:0;left:0;width:100%;height:100%;}
+#noimg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#6b7280;pointer-events:none;}
 
-/* Right panel */
-#panel{width:260px;background:#fff;border-left:1px solid #ccc;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;}
-#ptop{padding:12px;background:#f5f5f5;border-bottom:2px solid #e0e0e0;flex-shrink:0;}
-#ptop h2{font-size:13px;font-weight:700;color:#333;margin-bottom:10px;}
-.pbtn{width:100%;padding:9px;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;color:#fff;margin-bottom:5px;}
-.pbtn:hover{filter:brightness(1.1);}
-.pbtn.g{background:#2d7a1f;}
-.pbtn.b{background:#1a5a8a;}
-.pbtn.r{background:#a02020;}
-.out-row{display:flex;gap:5px;margin-top:2px;}
-.out-row button{flex:1;padding:7px;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;color:#fff;}
-.ob{background:#5a3080;}.oj{background:#7a4010;}
+/* Panel */
+#panel{position:fixed;top:var(--th);right:0;bottom:0;width:var(--pw);background:#1f2937;border-left:2px solid #374151;display:flex;flex-direction:column;overflow:hidden;z-index:90;}
+#pscroll{flex:1;overflow-y:auto;padding-bottom:16px;}
+#pscroll::-webkit-scrollbar{width:5px;}
+#pscroll::-webkit-scrollbar-track{background:#111827;}
+#pscroll::-webkit-scrollbar-thumb{background:#4b5563;border-radius:3px;}
 
-#pscroll{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;}
-.sec{font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #eee;padding-bottom:3px;margin-top:4px;}
-.fld{display:flex;flex-direction:column;gap:3px;}
-.fld label{font-size:11px;color:#555;}
-.fld textarea{font-size:13px;padding:6px;border:1px solid #ccc;border-radius:4px;resize:vertical;height:56px;font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif;width:100%;}
-.fld select,.fld input[type=number]{font-size:12px;padding:5px 7px;border:1px solid #ccc;border-radius:4px;width:100%;}
-.color-row{display:flex;align-items:center;gap:5px;}
-.color-row label{font-size:11px;color:#555;width:38px;flex-shrink:0;}
-.color-row input[type=color]{width:34px;height:28px;border:1px solid #ccc;border-radius:4px;padding:2px;cursor:pointer;flex-shrink:0;}
-.color-row .chex{font-size:11px;color:#444;flex:1;font-family:monospace;}
-.color-row .dbtn{background:#0e7a6a;color:#fff;border:none;border-radius:4px;font-size:12px;padding:2px 6px;cursor:pointer;flex-shrink:0;}
-.bold-btn{padding:4px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;background:#fff;margin-top:2px;}
-.bold-btn.on{background:#333;color:#fff;border-color:#333;}
-#step-hint{background:#fff8e0;border:1px solid #f0d060;border-radius:6px;padding:8px 10px;font-size:11px;color:#665500;line-height:1.6;}
-#step-hint b{color:#333;}
+/* Step blocks */
+.sb{border-bottom:1px solid #374151;}
+.sh{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;transition:background .15s;}
+.sh:hover{background:rgba(255,255,255,.04);}
+.sn{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;flex-shrink:0;}
+.st{font-size:13px;font-weight:700;color:#e5e7eb;flex:1;}
+.sa{color:#6b7280;font-size:11px;transition:transform .2s;}
+.sbody{padding:12px 14px 14px;display:none;flex-direction:column;gap:9px;background:rgba(0,0,0,.18);}
+.sb.open .sbody{display:flex;}
+.sb.open .sa{transform:rotate(180deg);}
+.s1 .sn{background:#e67e22;} .s1{border-left:3px solid #e67e22;}
+.s2 .sn{background:#2980b9;} .s2{border-left:3px solid #2980b9;}
+.s3 .sn{background:#27ae60;} .s3{border-left:3px solid #27ae60;}
+.s4 .sn{background:#8e44ad;} .s4{border-left:3px solid #8e44ad;}
+.s5 .sn{background:#c0392b;} .s5{border-left:3px solid #c0392b;}
+
+/* Form */
+.fld{display:flex;flex-direction:column;gap:4px;}
+.fld label{font-size:11px;color:#9ca3af;font-weight:500;}
+.fld textarea,.fld select,.fld input[type=number]{font-size:14px;padding:8px 10px;border:1.5px solid #374151;border-radius:6px;background:#111827;color:#f3f4f6;font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif;width:100%;}
+.fld textarea{resize:vertical;height:60px;}
+.fld textarea:focus,.fld select:focus,.fld input:focus{outline:none;border-color:#3b82f6;}
+.fld select option{background:#111827;}
+.crow{display:flex;align-items:center;gap:7px;}
+.crow label{font-size:12px;color:#9ca3af;width:40px;flex-shrink:0;}
+.crow input[type=color]{width:38px;height:32px;border:1.5px solid #374151;border-radius:5px;padding:2px;cursor:pointer;background:#111827;flex-shrink:0;}
+.crow .chex{font-size:11px;color:#d1d5db;flex:1;font-family:monospace;}
+.crow .dbtn{background:#065f46;color:#6ee7b7;border:none;border-radius:4px;font-size:12px;padding:3px 7px;cursor:pointer;flex-shrink:0;}
+.crow .dbtn:hover{background:#047857;}
+.tbtn2{padding:8px 12px;border:1.5px solid #374151;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;background:#111827;color:#9ca3af;transition:all .15s;width:100%;}
+.tbtn2.on{background:#1e40af;color:#bfdbfe;border-color:#3b82f6;}
+.pbtn{width:100%;padding:10px;border:none;border-radius:7px;font-size:14px;font-weight:700;cursor:pointer;color:#fff;transition:filter .15s;}
+.pbtn:hover{filter:brightness(1.12);}
+.hint{font-size:11px;color:#6b7280;line-height:1.7;background:#111827;border-radius:6px;padding:8px 10px;border:1px solid #1f2937;}
+.hint b{color:#9ca3af;}
+.bigbtn{width:100%;padding:12px;border:none;border-radius:8px;font-size:15px;font-weight:900;cursor:pointer;color:#fff;transition:filter .15s;}
+.bigbtn:hover{filter:brightness(1.12);}
 
 /* Text boxes */
-.tbox{position:absolute;cursor:move;overflow:hidden;}
-.tbox.sel{outline:2px solid #ff6600;outline-offset:1px;}
-.tbox .tc{width:100%;height:100%;outline:none;border:none;background:transparent;padding:4px 6px;word-break:break-all;line-height:1.4;display:flex;align-items:center;overflow:hidden;cursor:move;}
+.tbox{position:absolute;cursor:move;overflow:visible;}
+.tbox.sel .tbi{outline:2px solid #f97316;outline-offset:2px;}
+.tbi{width:100%;height:100%;overflow:hidden;position:relative;}
+.tc{width:100%;height:100%;outline:none;border:none;background:transparent;padding:5px 7px;word-break:break-all;line-height:1.4;overflow:hidden;cursor:move;display:flex;align-items:center;font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif;}
 .tbox.editing .tc{cursor:text;}
-.tbox .xbtn{position:absolute;top:-10px;right:-10px;width:20px;height:20px;background:#dd0000;color:#fff;border-radius:50%;font-size:12px;line-height:20px;text-align:center;cursor:pointer;display:none;font-weight:900;z-index:10;pointer-events:auto;}
-.tbox .rbtn{position:absolute;bottom:-6px;right:-6px;width:13px;height:13px;background:#ff6600;border-radius:2px;cursor:se-resize;display:none;z-index:10;pointer-events:auto;}
-.tbox.sel .xbtn,.tbox.sel .rbtn{display:block;}
-
-/* Confirm popup */
-#confirm-popup{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:10px;padding:20px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.4);min-width:280px;}
-#confirm-popup h3{font-size:13px;font-weight:700;color:#333;margin-bottom:12px;}
-.cp-color-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-.cp-color-row label{font-size:12px;color:#555;width:50px;}
-.cp-color-row input[type=color]{width:36px;height:30px;border:1px solid #ccc;border-radius:4px;padding:2px;cursor:pointer;}
-.cp-color-row .chex{font-size:12px;font-family:monospace;color:#333;flex:1;}
-.cp-dbtn{background:#0e7a6a;color:#fff;border:none;border-radius:4px;font-size:12px;padding:3px 8px;cursor:pointer;}
-#preview-box{width:100%;height:60px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;margin:10px 0;border:1px solid #eee;overflow:hidden;word-break:break-all;padding:6px;}
-.cp-actions{display:flex;gap:8px;margin-top:8px;}
-.cp-ok{flex:1;padding:9px;background:#2d7a1f;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;}
-.cp-cancel{padding:9px 14px;background:#aaa;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;}
+.xbtn{position:absolute;top:-10px;right:-10px;width:22px;height:22px;background:#ef4444;color:#fff;border-radius:50%;font-size:13px;line-height:22px;text-align:center;cursor:pointer;display:none;font-weight:900;z-index:20;pointer-events:auto;box-shadow:0 2px 5px rgba(0,0,0,.4);}
+.tbox.sel .xbtn{display:block;}
 
 /* Dropper */
-#dp{display:none;position:fixed;pointer-events:none;z-index:9999;background:#111;border:2px solid #fff;border-radius:4px;padding:4px 7px;font-size:11px;color:#fff;font-family:monospace;align-items:center;gap:5px;box-shadow:0 2px 8px rgba(0,0,0,.5);}
-#dp-sw{width:16px;height:16px;border-radius:2px;flex-shrink:0;}
+#dp{display:none;position:fixed;pointer-events:none;z-index:9999;background:#111;border:2px solid #fff;border-radius:5px;padding:4px 8px;font-size:12px;color:#fff;font-family:monospace;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(0,0,0,.5);}
+#dpsw{width:16px;height:16px;border-radius:3px;flex-shrink:0;}
+
+/* Erase confirm popup */
+#epopup{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1f2937;border:1.5px solid #374151;border-radius:12px;padding:20px;z-index:9999;box-shadow:0 12px 40px rgba(0,0,0,.6);min-width:300px;}
+#epopup h3{font-size:14px;font-weight:700;color:#f3f4f6;margin-bottom:12px;}
+.epr{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.epr label{font-size:12px;color:#9ca3af;width:50px;}
+.epr input[type=color]{width:36px;height:30px;border:1.5px solid #374151;border-radius:5px;padding:2px;cursor:pointer;background:#111827;}
+.epr .chex{font-size:12px;font-family:monospace;color:#d1d5db;flex:1;}
+.epr .dbtn{background:#065f46;color:#6ee7b7;border:none;border-radius:4px;font-size:12px;padding:3px 7px;cursor:pointer;}
+#eprev{width:100%;height:40px;border-radius:6px;display:flex;align-items:center;justify-content:center;border:1px solid #374151;font-size:13px;margin:10px 0;overflow:hidden;padding:4px;}
+.eacts{display:flex;gap:8px;margin-top:6px;}
+.eok{flex:1;padding:10px;background:#16a34a;color:#fff;border:none;border-radius:7px;font-size:14px;font-weight:700;cursor:pointer;}
+.eok:hover{filter:brightness(1.1);}
+.ecancel{padding:10px 14px;background:#374151;color:#d1d5db;border:none;border-radius:7px;font-size:13px;cursor:pointer;}
 </style>
 </head>
 <body>
 
+<!-- Toolbar -->
 <div id="toolbar">
   <input type="file" id="fi" accept="image/*">
   <label class="tbtn blue" for="fi">📁 載入圖片</label>
-  <div class="sep"></div>
-  <button class="tbtn orange active" id="btnSel" onclick="setMode('sel')">✏️ 框選放置</button>
-  <button class="tbtn gray" id="btnMove" onclick="setMode('move')">↖ 移動編輯</button>
-  <div class="sep"></div>
-  <button class="tbtn gray" onclick="undo()">↩ 復原</button>
+  <div class="tsep"></div>
+  <button class="tbtn gray" id="btnPan" onclick="togglePan()">🖐 拖拉視圖</button>
+  <button class="tbtn gray" onclick="zoomIn()">🔍＋</button>
+  <button class="tbtn gray" onclick="zoomOut()">🔍－</button>
+  <button class="tbtn gray" onclick="zoomReset()">↺ 重置</button>
+  <span id="zdisplay">100%</span>
+  <div class="tsep"></div>
+  <button class="tbtn gray" onclick="undoLast()">↩ 復原</button>
   <button class="tbtn red" onclick="delSel()">🗑 刪除</button>
-  <div class="sep"></div>
-  <button class="tbtn purple" onclick="doExport('png')">⬇ PNG</button>
-  <button class="tbtn brown" onclick="doExport('jpg')">⬇ JPG</button>
-  <span id="modetip">步驟①先在右側設定文字 → 步驟②框選圖片上要放置的位置</span>
+  <span id="sstatus">尚未載入圖片</span>
 </div>
 
-<!-- Dropper -->
-<div id="dp"><div id="dp-sw"></div><span id="dp-hex">#------</span></div>
+<!-- Dropper tooltip -->
+<div id="dp"><div id="dpsw"></div><span id="dphex">#------</span></div>
 
-<!-- Confirm popup -->
-<div id="confirm-popup">
-  <h3>✅ 確認套用設定</h3>
-  <div class="cp-color-row">
-    <label>底色：</label>
-    <input type="color" id="cpBg" value="#f0f7e6" oninput="updatePreview()">
-    <span class="chex" id="cpBgHex">#f0f7e6</span>
-    <button class="cp-dbtn" onclick="startDrop('cpBg')">💧 吸色</button>
+<!-- Erase + confirm popup -->
+<div id="epopup">
+  <h3>① 確認蓋掉原文字的顏色</h3>
+  <div class="epr">
+    <label>蓋色：</label>
+    <input type="color" id="epBg" value="#f0f7e6" oninput="updateEPrev()">
+    <span class="chex" id="epBgHex">#f0f7e6</span>
+    <button class="dbtn" onclick="startDrop('epBg')">💧 吸色</button>
   </div>
-  <div id="preview-box">預覽文字</div>
-  <div style="font-size:11px;color:#888;margin-bottom:4px;">💡 確認文字和底色後點套用</div>
-  <div class="cp-actions">
-    <button class="cp-cancel" onclick="cancelConfirm()">取消</button>
-    <button class="cp-ok" onclick="confirmApply()">✔ 套用</button>
+  <div id="eprev"></div>
+  <div style="font-size:11px;color:#6b7280;margin-bottom:4px;">
+    ✅ 確認後原文字會被蓋掉，然後你可以在同位置輸入新文字
+  </div>
+  <div class="eacts">
+    <button class="ecancel" onclick="cancelEP()">取消</button>
+    <button class="eok" onclick="confirmEP()">✔ 蓋掉並輸入新文字</button>
   </div>
 </div>
 
+<!-- Canvas -->
 <div id="main">
   <div id="cvwrap">
-    <div id="no-img">
-      <div style="font-size:50px;">🖼️</div>
-      <div>點「📁 載入圖片」開始</div>
-      <div style="font-size:12px;color:#999;">支援 PNG / JPG</div>
+    <div id="noimg">
+      <div style="font-size:54px;">🖼️</div>
+      <div style="font-size:15px;color:#9ca3af;">點「📁 載入圖片」開始</div>
+      <div style="font-size:12px;color:#6b7280;">支援 PNG / JPG</div>
     </div>
     <div id="stage">
       <canvas id="base-canvas"></canvas>
@@ -142,75 +163,126 @@ label.tbtn{display:inline-block;}
       <div id="tb-layer"></div>
     </div>
   </div>
+</div>
 
-  <!-- Right Panel -->
-  <div id="panel">
-    <div id="ptop">
-      <h2>⚙️ 文字設定</h2>
-      <button class="pbtn g" onclick="addManual()">＋ 手動新增方塊</button>
-      <div class="out-row">
-        <button class="ob" onclick="doExport('png')">⬇ PNG</button>
-        <button class="oj" onclick="doExport('jpg')">⬇ JPG</button>
+<!-- Right Panel -->
+<div id="panel">
+  <div id="pscroll">
+
+    <!-- Step 1: Select area to erase -->
+    <div class="sb open">
+      <div class="sh s1" onclick="toggleSB(this)">
+        <span class="sn">①</span><span class="st">框選要修改的文字</span><span class="sa">▼</span>
+      </div>
+      <div class="sbody">
+        <div class="hint">
+          在圖片上 <b>拖曳框選</b> 要蓋掉的文字區域。<br>
+          框選後會讓你確認 <b>蓋色</b>（用滴管吸取原底色），<br>
+          確認後原文字消失，然後輸入新文字。
+        </div>
+        <button class="bigbtn" id="btnSel" onclick="activateSel()" style="background:#8e44ad;">
+          ✏️ 點我開始框選
+        </button>
       </div>
     </div>
-    <div id="pscroll">
-      <div id="step-hint">
-        <b>① 先在這裡設定文字內容和格式</b><br>
-        <b>② 再到圖片上框選要放置的位置</b><br>
-        <b>③ 確認底色後套用</b>
-      </div>
 
-      <div class="sec">文字內容</div>
-      <div class="fld">
-        <label>輸入文字（Enter 換行）</label>
-        <textarea id="pText" placeholder="輸入要放上去的文字...">新文字</textarea>
+    <!-- Step 2: Text content -->
+    <div class="sb open">
+      <div class="sh s2" onclick="toggleSB(this)">
+        <span class="sn">②</span><span class="st">輸入新文字內容</span><span class="sa">▼</span>
       </div>
-
-      <div class="sec">字型設定</div>
-      <div class="fld">
-        <label>字型</label>
-        <select id="pFont"></select>
+      <div class="sbody">
+        <div class="hint">框選確認後，文字方塊會自動出現在框選位置，<b>直接打字</b>即可。也可在這裡設定好文字再框選。</div>
+        <div class="fld">
+          <label>文字內容（Enter 換行）</label>
+          <textarea id="pText" placeholder="輸入要放上去的文字..."></textarea>
+        </div>
       </div>
-      <div class="fld">
-        <label>字體大小 (px)</label>
-        <input type="number" id="pSize" value="24" min="6" max="300">
-      </div>
-      <button id="pBold" class="bold-btn" onclick="toggleBold()"><b>B</b> 粗體</button>
-
-      <div class="sec">顏色設定</div>
-      <div class="color-row">
-        <label>字色：</label>
-        <input type="color" id="pFg" value="#000000" oninput="syncHex('pFg','pFgHex')">
-        <span class="chex" id="pFgHex">#000000</span>
-        <button class="dbtn" onclick="startDrop('pFg')">💧</button>
-      </div>
-      <div class="color-row" style="margin-top:4px;">
-        <label>底色：</label>
-        <input type="color" id="pBg" value="#f0f7e6" oninput="syncHex('pBg','pBgHex')">
-        <span class="chex" id="pBgHex">#f0f7e6</span>
-        <button class="dbtn" onclick="startDrop('pBg')">💧</button>
-      </div>
-      <div style="margin-top:4px;">
-        <button class="bold-btn" id="pTransBtn" onclick="togglePanelTransparent()">□ 透明底色</button>
-      </div>
-
-      <div class="sec">對齊</div>
-      <div class="fld">
-        <select id="pAlign">
-          <option value="center">置中</option>
-          <option value="left">靠左</option>
-          <option value="right">靠右</option>
-        </select>
-      </div>
-
-      <div class="sec" style="margin-top:8px;">已選取方塊</div>
-      <button class="pbtn b" onclick="applyToSelected()" style="margin-top:2px;">🔄 套用設定到選取方塊</button>
-      <button class="pbtn r" onclick="delSel()" style="margin-top:2px;">🗑 刪除選取方塊</button>
     </div>
+
+    <!-- Step 3: Font -->
+    <div class="sb open">
+      <div class="sh s3" onclick="toggleSB(this)">
+        <span class="sn">③</span><span class="st">字型與大小</span><span class="sa">▼</span>
+      </div>
+      <div class="sbody">
+        <div class="fld"><label>字型</label><select id="pFont"></select></div>
+        <div style="display:flex;gap:7px;align-items:flex-end;">
+          <div class="fld" style="flex:1;">
+            <label>大小 (px)　→　即時更新</label>
+            <input type="number" id="pSize" value="28" min="6" max="400" oninput="liveSize()">
+          </div>
+          <button id="pBold" class="tbtn2" onclick="toggleBold()" style="width:auto;padding:8px 12px;margin-bottom:1px;"><b>B</b></button>
+        </div>
+        <div class="fld">
+          <label>對齊</label>
+          <select id="pAlign">
+            <option value="center">置中</option>
+            <option value="left">靠左</option>
+            <option value="right">靠右</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4: Colors -->
+    <div class="sb open">
+      <div class="sh s4" onclick="toggleSB(this)">
+        <span class="sn">④</span><span class="st">文字顏色</span><span class="sa">▼</span>
+      </div>
+      <div class="sbody">
+        <div class="hint">
+          文字底色預設為 <b>透明</b>（不蓋原圖）。<br>
+          如果需要不透明底色，取消透明後選擇顏色。
+        </div>
+        <div class="crow">
+          <label>字色：</label>
+          <input type="color" id="pFg" value="#1a1a1a" oninput="syncHex('pFg','pFgHex');liveColor()">
+          <span class="chex" id="pFgHex">#1a1a1a</span>
+          <button class="dbtn" onclick="startDrop('pFg')">💧</button>
+        </div>
+        <button class="tbtn2 on" id="pTransBtn" onclick="toggleTrans()">✅ 透明底色（只顯示文字）</button>
+        <div id="bgRow" style="display:none;">
+          <div class="crow" style="margin-top:6px;">
+            <label>底色：</label>
+            <input type="color" id="pBg" value="#ffffff" oninput="syncHex('pBg','pBgHex');liveBg()">
+            <span class="chex" id="pBgHex">#ffffff</span>
+            <button class="dbtn" onclick="startDrop('pBg')">💧</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 5: Adjust & Export -->
+    <div class="sb open">
+      <div class="sh s5" onclick="toggleSB(this)">
+        <span class="sn">⑤</span><span class="st">調整・儲存・輸出</span><span class="sa">▼</span>
+      </div>
+      <div class="sbody">
+        <div class="hint">
+          <b>點選方塊</b> → 移動位置（拖曳）<br>
+          <b>雙擊方塊</b> → 直接編輯文字<br>
+          <b>改數字大小</b> → 即時更新選取中的方塊<br>
+          <b>Space＋拖曳</b> → 移動畫布視野
+        </div>
+        <button class="pbtn" onclick="applyToSel()" style="background:#1d4ed8;">🔄 套用設定到選取方塊</button>
+        <button class="pbtn" onclick="delSel()" style="background:#991b1b;margin-top:5px;">🗑 刪除選取方塊</button>
+        <button class="pbtn" onclick="undoLast()" style="background:#374151;margin-top:5px;">↩ 復原上一步</button>
+        <div style="height:1px;background:#374151;margin:6px 0;"></div>
+        <button class="pbtn" onclick="saveProject()" style="background:#065f46;">💾 儲存專案（可繼續編輯）</button>
+        <button class="pbtn" onclick="loadProject()" style="background:#1e3a5f;margin-top:5px;">📂 載入已儲存專案</button>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <button class="bigbtn" onclick="doExport('png')" style="flex:1;background:#5b21b6;font-size:14px;">⬇ PNG</button>
+          <button class="bigbtn" onclick="doExport('jpg')" style="flex:1;background:#7c2d12;font-size:14px;">⬇ JPG</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <script>
+// ── Refs ──
 const baseCv=document.getElementById('base-canvas');
 const uiCv=document.getElementById('ui-canvas');
 const hitCv=document.getElementById('hit-canvas');
@@ -218,79 +290,86 @@ const bCtx=baseCv.getContext('2d');
 const uCtx=uiCv.getContext('2d');
 const stage=document.getElementById('stage');
 const tbLayer=document.getElementById('tb-layer');
-const noImg=document.getElementById('no-img');
-const modetip=document.getElementById('modetip');
+const noimg=document.getElementById('noimg');
+const cvwrap=document.getElementById('cvwrap');
 const dp=document.getElementById('dp');
-const confirmPopup=document.getElementById('confirm-popup');
+const epopup=document.getElementById('epopup');
+const sstatus=document.getElementById('sstatus');
 
-let img=null, coverRects=[], boxes=[], selId=null, idCtr=0;
-let mode='sel', dropTarget=null, prevMode='sel';
+// ── State ──
+let img=null, srcDataUrl=null;
+let coverRects=[], boxes=[], selId=null, idCtr=0;
+let mode='idle'; // idle | sel | dropper
+let dropTarget=null, prevMode='idle';
 let drawing=false, sx,sy, curSel=null;
 let dragId=null, dragOx,dragOy;
-let resId=null, resW0,resH0,rMx,rMy;
-let isBold=false, panelTransparent=false;
+let isBold=false, isTrans=true;
 let pendingSel=null;
+let zoomLevel=1;
+let isPanMode=false, panStart=null, panScrollStart=null, spaceDown=false;
 
-// ── Detect system fonts ──
-const FONTS=[
-  {name:'微軟正黑體', val:"'Microsoft JhengHei','Noto Sans TC',sans-serif"},
-  {name:'微軟雅黑', val:"'Microsoft YaHei',sans-serif"},
-  {name:'標楷體', val:"'DFKai-SB','BiauKai',serif"},
-  {name:'新細明體', val:"'PMingLiU','MingLiU',serif"},
-  {name:'細明體', val:"'MingLiU',serif"},
-  {name:'黑體-繁', val:"'Heiti TC','黑體-繁',sans-serif"},
-  {name:'蘋方-繁', val:"'PingFang TC','蘋方-繁',sans-serif"},
-  {name:'Arial', val:"Arial,sans-serif"},
-  {name:'Arial Black', val:"'Arial Black',sans-serif"},
-  {name:'Verdana', val:"Verdana,sans-serif"},
-  {name:'Georgia', val:"Georgia,serif"},
-  {name:'Times New Roman', val:"'Times New Roman',serif"},
-  {name:'Courier New', val:"'Courier New',monospace"},
-  {name:'Impact', val:"Impact,sans-serif"},
-  {name:'Tahoma', val:"Tahoma,sans-serif"},
-  {name:'Trebuchet MS', val:"'Trebuchet MS',sans-serif"},
-];
-
-function detectFonts(){
-  const canvas=document.createElement('canvas');
-  canvas.width=200; canvas.height=30;
-  const ctx=canvas.getContext('2d');
-  const base='monospace';
-  const testStr='測試ABCabc123';
-  ctx.font='20px '+base;
-  const baseW=ctx.measureText(testStr).width;
+// ── Fonts ──
+(function(){
+  const cv=document.createElement('canvas'); cv.width=200; cv.height=30;
+  const ctx=cv.getContext('2d');
+  ctx.font='20px monospace';
+  const base=ctx.measureText('測試ABCabc').width;
+  const FONTS=[
+    {n:'微軟正黑體',v:"'Microsoft JhengHei','Noto Sans TC',sans-serif"},
+    {n:'微軟雅黑',v:"'Microsoft YaHei',sans-serif"},
+    {n:'標楷體',v:"'DFKai-SB','BiauKai',serif"},
+    {n:'新細明體',v:"'PMingLiU','MingLiU',serif"},
+    {n:'蘋方-繁',v:"'PingFang TC',sans-serif"},
+    {n:'Arial',v:"Arial,sans-serif"},
+    {n:'Arial Black',v:"'Arial Black',sans-serif"},
+    {n:'Verdana',v:"Verdana,sans-serif"},
+    {n:'Georgia',v:"Georgia,serif"},
+    {n:'Times New Roman',v:"'Times New Roman',serif"},
+    {n:'Impact',v:"Impact,sans-serif"},
+    {n:'Tahoma',v:"Tahoma,sans-serif"},
+    {n:'Courier New',v:"'Courier New',monospace"},
+  ];
   const sel=document.getElementById('pFont');
-  sel.innerHTML='';
   FONTS.forEach(f=>{
-    ctx.font='20px '+f.val+','+base;
-    const w=ctx.measureText(testStr).width;
-    // Add all fonts (show indicator if likely available)
-    const available=(w!==baseW)||(f.val.includes('sans-serif')||f.val.includes('serif'));
+    ctx.font='20px '+f.v+',monospace';
+    const w=ctx.measureText('測試ABCabc').width;
     const opt=document.createElement('option');
-    opt.value=f.val; opt.textContent=f.name+(w!==baseW?' ✓':'');
+    opt.value=f.v; opt.textContent=f.n+(w!==base?' ✓':'');
     sel.appendChild(opt);
   });
+})();
+
+// ── Step accordion ──
+function toggleSB(header){header.closest('.sb').classList.toggle('open');}
+
+// ── Status ──
+function setStatus(txt,type='normal'){
+  sstatus.textContent=txt;
+  sstatus.className='';
+  if(type==='unsaved') sstatus.classList.add('unsaved');
+  if(type==='saved') sstatus.classList.add('saved');
 }
-detectFonts();
 
 // ── Load image ──
 document.getElementById('fi').onchange=e=>{
   const f=e.target.files[0]; if(!f)return;
-  const r=new FileReader();
-  r.onload=ev=>{
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    srcDataUrl=ev.target.result;
     img=new Image();
     img.onload=()=>{
       baseCv.width=uiCv.width=hitCv.width=img.width;
       baseCv.height=uiCv.height=hitCv.height=img.height;
-      stage.style.width=img.width+'px';
+      stage.style.width=img.width+'px'; stage.style.height=img.height+'px';
       coverRects=[]; boxes=[]; selId=null; curSel=null;
       tbLayer.innerHTML='';
-      noImg.style.display='none'; stage.style.display='inline-block';
-      drawBase();
+      noimg.style.display='none'; stage.style.display='block';
+      drawBase(); applyZoom();
+      setStatus('圖片已載入','normal');
     };
-    img.src=ev.target.result;
+    img.src=srcDataUrl;
   };
-  r.readAsDataURL(f);
+  reader.readAsDataURL(f);
 };
 
 function drawBase(){
@@ -301,51 +380,80 @@ function drawBase(){
 }
 
 function drawUI(){
-  uCtx.clearRect(0,0,uiCv.width,uiCv.h);
   uCtx.clearRect(0,0,uiCv.width,uiCv.height);
   if(curSel&&curSel.w>0){
-    uCtx.strokeStyle='#ff8800'; uCtx.lineWidth=2; uCtx.setLineDash([5,3]);
+    uCtx.strokeStyle='#f97316'; uCtx.lineWidth=2/zoomLevel;
+    uCtx.setLineDash([6/zoomLevel,3/zoomLevel]);
     uCtx.strokeRect(curSel.x,curSel.y,curSel.w,curSel.h);
-    uCtx.fillStyle='rgba(255,136,0,0.07)'; uCtx.fillRect(curSel.x,curSel.y,curSel.w,curSel.h);
+    uCtx.fillStyle='rgba(249,115,22,0.07)'; uCtx.fillRect(curSel.x,curSel.y,curSel.w,curSel.h);
     uCtx.setLineDash([]);
   }
 }
 
+// ── Zoom ──
+function applyZoom(){
+  stage.style.transform=`scale(${zoomLevel})`;
+  document.getElementById('zdisplay').textContent=Math.round(zoomLevel*100)+'%';
+  syncAllPos();
+}
+function zoomIn(){zoomLevel=Math.min(4,+(zoomLevel+0.25).toFixed(2));applyZoom();}
+function zoomOut(){zoomLevel=Math.max(0.25,+(zoomLevel-0.25).toFixed(2));applyZoom();}
+function zoomReset(){zoomLevel=1;applyZoom();}
+cvwrap.addEventListener('wheel',e=>{if(e.ctrlKey||e.metaKey){e.preventDefault();e.deltaY<0?zoomIn():zoomOut();}},{passive:false});
+
+// ── Pan ──
+function togglePan(){
+  isPanMode=!isPanMode;
+  document.getElementById('btnPan').style.background=isPanMode?'#d97706':'#4b5563';
+  cvwrap.classList.toggle('panning',isPanMode);
+  applyHitEvents();
+}
+function applyHitEvents(){
+  if(isPanMode){hitCv.style.pointerEvents='none';tbLayer.style.pointerEvents='none';return;}
+  hitCv.style.pointerEvents=mode==='sel'?'auto':'none';
+  tbLayer.style.pointerEvents=mode==='idle'?'auto':'none';
+}
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'&&!e.target.matches('textarea,input')){e.preventDefault();spaceDown=true;cvwrap.style.cursor='grab';}
+});
+document.addEventListener('keyup',e=>{if(e.code==='Space'){spaceDown=false;cvwrap.style.cursor='';}});
+cvwrap.addEventListener('mousedown',e=>{
+  if(spaceDown||isPanMode){
+    panStart={x:e.clientX,y:e.clientY};
+    panScrollStart={left:cvwrap.scrollLeft,top:cvwrap.scrollTop};
+    cvwrap.style.cursor='grabbing'; e.preventDefault();
+  }
+});
+document.addEventListener('mousemove',e=>{
+  if(panStart){
+    cvwrap.scrollLeft=panScrollStart.left-(e.clientX-panStart.x);
+    cvwrap.scrollTop=panScrollStart.top-(e.clientY-panStart.y);
+  }
+});
+document.addEventListener('mouseup',()=>{if(panStart){panStart=null;cvwrap.style.cursor=spaceDown?'grab':'';}});
+
 // ── Mode ──
 function setMode(m){
   mode=m;
-  ['btnSel','btnMove'].forEach(id=>{document.getElementById(id)?.classList.remove('active');});
-  if(m==='sel'){
-    document.getElementById('btnSel').classList.add('active');
-    hitCv.style.cursor='crosshair'; hitCv.style.pointerEvents='auto';
-    tbLayer.style.pointerEvents='none';
-    modetip.textContent='① 右側設定好文字 → ② 在圖片上拖曳框選放置位置';
-  } else if(m==='move'){
-    document.getElementById('btnMove').classList.add('active');
-    hitCv.style.cursor='default'; hitCv.style.pointerEvents='none';
-    tbLayer.style.pointerEvents='auto';
-    modetip.textContent='移動模式：拖曳方塊移動 | 雙擊編輯文字 | 右下角拖曳調整大小';
-  } else if(m==='dropper'){
-    hitCv.style.cursor='cell'; hitCv.style.pointerEvents='auto';
-    tbLayer.style.pointerEvents='none';
-  }
-  if(m!=='dropper') dp.style.display='none';
+  hitCv.style.pointerEvents=m==='sel'||m==='dropper'?'auto':'none';
+  tbLayer.style.pointerEvents=m==='idle'?'auto':'none';
+  hitCv.style.cursor=m==='sel'?'crosshair':m==='dropper'?'cell':'default';
+  const btn=document.getElementById('btnSel');
+  if(m==='sel'){btn.textContent='✏️ 框選模式啟動 ─ 在圖上拖曳';btn.style.background='#065f46';}
+  else{btn.textContent='✏️ 點我開始框選';btn.style.background='#8e44ad';}
 }
+function activateSel(){if(!img){alert('請先載入圖片！');return;}setMode('sel');}
 
 // ── Dropper ──
 function startDrop(target){
   if(!img){alert('請先載入圖片！');return;}
-  dropTarget=target;
-  prevMode=mode==='dropper'?prevMode:mode;
-  mode='dropper';
-  hitCv.style.cursor='cell'; hitCv.style.pointerEvents='auto';
-  tbLayer.style.pointerEvents='none';
-  dp.style.display='flex';
-  modetip.textContent='💧 點圖片任意位置吸色 | Esc 取消';
+  dropTarget=target; prevMode=mode; mode='dropper';
+  hitCv.style.pointerEvents='auto'; tbLayer.style.pointerEvents='none';
+  hitCv.style.cursor='cell'; dp.style.display='flex';
   document.addEventListener('keydown',escDrop);
 }
 function escDrop(e){if(e.key==='Escape')exitDrop();}
-function exitDrop(){document.removeEventListener('keydown',escDrop); dp.style.display='none'; setMode(prevMode);}
+function exitDrop(){document.removeEventListener('keydown',escDrop);dp.style.display='none';setMode(prevMode);}
 
 function sample(ix,iy){
   const x=Math.max(0,Math.min(Math.round(ix),baseCv.width-1));
@@ -353,63 +461,59 @@ function sample(ix,iy){
   const d=bCtx.getImageData(x,y,1,1).data;
   return '#'+[d[0],d[1],d[2]].map(v=>v.toString(16).padStart(2,'0')).join('');
 }
-
-function syncHex(colId,hexId){
-  document.getElementById(hexId).textContent=document.getElementById(colId).value;
-}
+function syncHex(id,hid){document.getElementById(hid).textContent=document.getElementById(id).value;}
 
 // ── Hit canvas ──
-function scPos(e){
-  const rect=hitCv.getBoundingClientRect(), sc=hitCv.width/rect.width;
-  return{x:(e.clientX-rect.left)*sc,y:(e.clientY-rect.top)*sc};
+function imgPos(e){
+  const r=hitCv.getBoundingClientRect();
+  return{x:(e.clientX-r.left)/zoomLevel,y:(e.clientY-r.top)/zoomLevel};
 }
 
 hitCv.addEventListener('mousemove',e=>{
   if(!img)return;
   if(mode==='dropper'){
-    const p=scPos(e),h=sample(p.x,p.y);
-    document.getElementById('dp-sw').style.background=h;
-    document.getElementById('dp-hex').textContent=h;
-    dp.style.left=(e.clientX+14)+'px'; dp.style.top=(e.clientY-8)+'px';
+    const p=imgPos(e),h=sample(p.x,p.y);
+    document.getElementById('dpsw').style.background=h;
+    document.getElementById('dphex').textContent=h;
+    dp.style.left=(e.clientX+16)+'px'; dp.style.top=(e.clientY-8)+'px';
     return;
   }
   if(drawing&&mode==='sel'){
-    const p=scPos(e);
+    const p=imgPos(e);
     curSel={x:Math.min(sx,p.x),y:Math.min(sy,p.y),w:Math.abs(p.x-sx),h:Math.abs(p.y-sy)};
     drawUI();
   }
 });
 
 hitCv.addEventListener('mousedown',e=>{
-  if(!img)return;
-  const p=scPos(e);
+  if(!img||panStart)return;
+  const p=imgPos(e);
   if(mode==='dropper'){
     const h=sample(p.x,p.y);
     const el=document.getElementById(dropTarget);
     if(el){
       el.value=h;
-      // Sync hex displays
-      if(dropTarget==='pFg') document.getElementById('pFgHex').textContent=h;
-      if(dropTarget==='pBg') document.getElementById('pBgHex').textContent=h;
-      if(dropTarget==='cpBg'){document.getElementById('cpBgHex').textContent=h; updatePreview();}
+      if(dropTarget==='pFg'){document.getElementById('pFgHex').textContent=h;liveColor();}
+      if(dropTarget==='pBg'){document.getElementById('pBgHex').textContent=h;liveBg();}
+      if(dropTarget==='epBg'){document.getElementById('epBgHex').textContent=h;updateEPrev();}
     }
     exitDrop(); return;
   }
-  if(mode==='sel'){drawing=true; sx=p.x; sy=p.y; curSel={x:p.x,y:p.y,w:0,h:0};}
+  if(mode==='sel'){drawing=true;sx=p.x;sy=p.y;curSel={x:p.x,y:p.y,w:0,h:0};}
 });
 
 hitCv.addEventListener('mouseup',e=>{
   if(mode==='sel'&&drawing){
     drawing=false;
     if(curSel&&curSel.w>6&&curSel.h>6){
-      // Show confirm popup
       pendingSel={...curSel};
-      // Auto-sample bg from selection center
-      const h=sample(curSel.x+curSel.w/2, curSel.y+curSel.h/2);
-      document.getElementById('cpBg').value=h;
-      document.getElementById('cpBgHex').textContent=h;
-      updatePreview();
-      confirmPopup.style.display='block';
+      // Auto-sample color from the edge of selection (more likely background)
+      const h=sample(curSel.x+2, curSel.y+2);
+      document.getElementById('epBg').value=h;
+      document.getElementById('epBgHex').textContent=h;
+      updateEPrev();
+      epopup.style.display='block';
+      setMode('idle');
       curSel=null; drawUI();
     } else {
       curSel=null; drawUI();
@@ -417,150 +521,186 @@ hitCv.addEventListener('mouseup',e=>{
   }
 });
 
-// ── Confirm popup ──
-function updatePreview(){
-  const bg=document.getElementById('cpBg').value;
-  document.getElementById('cpBgHex').textContent=bg;
-  const text=document.getElementById('pText').value||'新文字';
-  const fg=document.getElementById('pFg').value;
-  const size=Math.min(parseInt(document.getElementById('pSize').value)||24, 28);
-  const font=document.getElementById('pFont').value;
-  const bold=isBold;
-  const pb=document.getElementById('preview-box');
-  pb.style.background=panelTransparent?'repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 0 0 / 12px 12px':bg;
-  pb.style.color=fg;
-  pb.style.fontSize=size+'px';
-  pb.style.fontWeight=bold?'700':'400';
-  pb.style.fontFamily=font;
-  pb.style.textAlign=document.getElementById('pAlign').value;
-  pb.textContent=text.split('\n')[0];
+// ── Erase popup ──
+function updateEPrev(){
+  const bg=document.getElementById('epBg').value;
+  document.getElementById('epBgHex').textContent=bg;
+  const pv=document.getElementById('eprev');
+  pv.style.background=bg;
+  pv.textContent=''; // show color only
 }
-
-function cancelConfirm(){
-  confirmPopup.style.display='none';
-  pendingSel=null;
-}
-
-function confirmApply(){
-  confirmPopup.style.display='none';
+function cancelEP(){epopup.style.display='none';pendingSel=null;}
+function confirmEP(){
+  epopup.style.display='none';
   if(!pendingSel)return;
   const sel=pendingSel; pendingSel=null;
-  const bg=document.getElementById('cpBg').value;
-
-  // Cover original permanently
-  if(!panelTransparent){
-    bCtx.fillStyle=bg;
-    bCtx.fillRect(Math.round(sel.x),Math.round(sel.y),Math.round(sel.w),Math.round(sel.h));
-    coverRects.push({x:sel.x,y:sel.y,w:sel.w,h:sel.h,c:bg});
-  }
-
-  // Create text box
-  makeBox(sel.x,sel.y,sel.w,sel.h,bg);
+  const bg=document.getElementById('epBg').value;
+  // Permanently cover original text
+  bCtx.fillStyle=bg;
+  bCtx.fillRect(Math.round(sel.x),Math.round(sel.y),Math.round(sel.w),Math.round(sel.h));
+  coverRects.push({...sel,c:bg});
+  // Create transparent text box on top → user types new text
+  makeBox(sel.x,sel.y,sel.w,sel.h,bg,true);
+  setStatus('● 未儲存','unsaved');
 }
 
 // ── Text box ──
-function makeBox(x,y,w,h,bgColor){
+function makeBox(x,y,w,h,bgColor,autoTrans){
   idCtr++;
-  const text=document.getElementById('pText').value||'新文字';
+  const text=document.getElementById('pText').value||'';
   const fg=document.getElementById('pFg').value;
-  const size=parseInt(document.getElementById('pSize').value)||24;
+  const size=parseInt(document.getElementById('pSize').value)||28;
   const font=document.getElementById('pFont').value;
   const align=document.getElementById('pAlign').value;
-  const b={id:idCtr,x,y,w,h,text,size,bold:isBold,font,bg:bgColor,fg,align,transparent:panelTransparent};
+  const trans=autoTrans!==undefined?autoTrans:isTrans;
+  const b={id:idCtr,x,y,w,h,text,size,bold:isBold,font,bg:bgColor,fg,align,trans};
   boxes.push(b);
   const el=mkEl(b);
   tbLayer.appendChild(el);
   selectBox(b.id);
-  setMode('move');
+  setMode('idle');
+  // Auto-focus for immediate typing
+  setTimeout(()=>{
+    const tc=el.querySelector('.tc');
+    el.classList.add('editing');
+    tc.contentEditable='true'; tc.style.cursor='text'; tc.focus();
+    // Select all existing text if any
+    if(tc.textContent){const r=document.createRange();r.selectNodeContents(tc);const s=window.getSelection();s.removeAllRanges();s.addRange(r);}
+  },60);
 }
 
 function addManual(){
   if(!img){alert('請先載入圖片！');return;}
-  makeBox(img.width*0.2, img.height*0.4, 220, 70, document.getElementById('pBg').value);
+  const bg=document.getElementById('pBg').value;
+  makeBox(img.width*0.2,img.height*0.4,220,70,bg,isTrans);
+  setStatus('● 未儲存','unsaved');
 }
 
 function mkEl(b){
-  const sc=getScale();
-  const el=document.createElement('div');
-  el.id='b'+b.id; el.className='tbox';
-  styleEl(el,b,sc);
+  const sc=zoomLevel;
+  const wrap=document.createElement('div');
+  wrap.id='b'+b.id; wrap.className='tbox';
+  wrap.style.cssText=`position:absolute;left:${b.x*sc}px;top:${b.y*sc}px;width:${b.w*sc}px;height:${b.h*sc}px;`;
+
+  const inner=document.createElement('div');
+  inner.className='tbi';
+  inner.style.background=b.trans?'transparent':b.bg;
 
   const tc=document.createElement('div');
   tc.className='tc';
-  styleTc(tc,b,sc);
+  applyTc(tc,b,sc);
   tc.contentEditable='false';
-  tc.textContent=b.text;
-  tc.oninput=()=>{b.text=tc.innerText;};
-  tc.onblur=()=>{el.classList.remove('editing');tc.contentEditable='false';tc.style.cursor='move';b.text=tc.innerText;};
-  el.appendChild(tc);
+  tc.textContent=b.text||'';
+  tc.oninput=()=>{b.text=tc.innerText;setStatus('● 未儲存','unsaved');};
+  tc.onblur=()=>{wrap.classList.remove('editing');tc.contentEditable='false';tc.style.cursor='move';b.text=tc.innerText;};
+  inner.appendChild(tc);
+  wrap.appendChild(inner);
 
-  el.ondblclick=ev=>{
+  // Delete
+  const xb=document.createElement('div');
+  xb.className='xbtn'; xb.textContent='✕';
+  xb.onmousedown=ev=>{ev.stopPropagation();removeBox(b.id);};
+  wrap.appendChild(xb);
+
+  // Double click = edit
+  wrap.ondblclick=ev=>{
     ev.stopPropagation(); selectBox(b.id);
-    el.classList.add('editing');
+    wrap.classList.add('editing');
     tc.contentEditable='true'; tc.style.cursor='text'; tc.focus();
   };
-  el.onmousedown=ev=>{
-    if(ev.target.className==='xbtn'||ev.target.className==='rbtn')return;
-    if(el.classList.contains('editing'))return;
+
+  // Drag
+  wrap.onmousedown=ev=>{
+    if(ev.target.classList.contains('xbtn'))return;
+    if(wrap.classList.contains('editing'))return;
     ev.preventDefault(); selectBox(b.id);
-    const r=el.getBoundingClientRect();
+    const r=wrap.getBoundingClientRect();
     dragId=b.id; dragOx=ev.clientX-r.left; dragOy=ev.clientY-r.top;
   };
-
-  const xbtn=document.createElement('div');
-  xbtn.className='xbtn'; xbtn.textContent='✕';
-  xbtn.onmousedown=ev=>{ev.stopPropagation(); removeBox(b.id);};
-  el.appendChild(xbtn);
-
-  const rbtn=document.createElement('div');
-  rbtn.className='rbtn';
-  rbtn.onmousedown=ev=>{
-    ev.stopPropagation(); ev.preventDefault();
-    resId=b.id; resW0=b.w; resH0=b.h; rMx=ev.clientX; rMy=ev.clientY;
-  };
-  el.appendChild(rbtn);
-  return el;
+  return wrap;
 }
 
-function styleEl(el,b,sc){
-  el.style.cssText=`position:absolute;left:${Math.round(b.x*sc)}px;top:${Math.round(b.y*sc)}px;width:${Math.round(b.w*sc)}px;height:${Math.round(b.h*sc)}px;background:${b.transparent?'transparent':b.bg};overflow:hidden;cursor:move;`;
-}
-function styleTc(tc,b,sc){
+function applyTc(tc,b,sc){
   const jc=b.align==='left'?'flex-start':b.align==='right'?'flex-end':'center';
-  tc.style.cssText=`width:100%;height:100%;font-size:${Math.round(b.size*sc)}px;font-weight:${b.bold?700:400};color:${b.fg};font-family:${b.font};text-align:${b.align};display:flex;align-items:center;justify-content:${jc};padding:4px 6px;word-break:break-all;line-height:1.4;overflow:hidden;cursor:move;outline:none;border:none;background:transparent;`;
+  tc.style.cssText=`width:100%;height:100%;font-size:${Math.round(b.size*sc)}px;font-weight:${b.bold?700:400};color:${b.fg};font-family:${b.font};text-align:${b.align};display:flex;align-items:center;justify-content:${jc};padding:5px 7px;word-break:break-all;line-height:1.4;overflow:hidden;cursor:move;outline:none;border:none;background:transparent;`;
 }
 
-function getScale(){return baseCv.getBoundingClientRect().width/baseCv.width;}
+function syncAllPos(){
+  boxes.forEach(b=>{
+    const el=document.getElementById('b'+b.id); if(!el)return;
+    const sc=zoomLevel;
+    el.style.left=Math.round(b.x*sc)+'px'; el.style.top=Math.round(b.y*sc)+'px';
+    el.style.width=Math.round(b.w*sc)+'px'; el.style.height=Math.round(b.h*sc)+'px';
+    const tc=el.querySelector('.tc'); if(tc)applyTc(tc,b,sc);
+  });
+}
 
 function selectBox(id){
   selId=id;
   document.querySelectorAll('.tbox').forEach(el=>el.classList.remove('sel'));
-  const el=document.getElementById('b'+id); if(el)el.classList.add('sel');
-  const b=boxes.find(x=>x.id===id);
-  if(b){
-    document.getElementById('pText').value=b.text;
-    document.getElementById('pFont').value=b.font;
-    document.getElementById('pSize').value=b.size;
-    document.getElementById('pFg').value=b.fg;
-    document.getElementById('pFgHex').textContent=b.fg;
-    document.getElementById('pBg').value=b.bg;
-    document.getElementById('pBgHex').textContent=b.bg;
-    document.getElementById('pAlign').value=b.align;
-    isBold=b.bold;
-    document.getElementById('pBold').className='bold-btn'+(b.bold?' on':'');
-    panelTransparent=b.transparent;
-    document.getElementById('pTransBtn').className='bold-btn'+(b.transparent?' on':'');
-  }
+  document.getElementById('b'+id)?.classList.add('sel');
+  const b=boxes.find(x=>x.id===id); if(!b)return;
+  document.getElementById('pText').value=b.text;
+  document.getElementById('pFont').value=b.font;
+  document.getElementById('pSize').value=b.size;
+  document.getElementById('pFg').value=b.fg; document.getElementById('pFgHex').textContent=b.fg;
+  document.getElementById('pBg').value=b.bg; document.getElementById('pBgHex').textContent=b.bg;
+  document.getElementById('pAlign').value=b.align;
+  isBold=b.bold; document.getElementById('pBold').className='tbtn2'+(b.bold?' on':'');
+  isTrans=b.trans;
+  document.getElementById('pTransBtn').className='tbtn2'+(b.trans?' on':'');
+  document.getElementById('bgRow').style.display=b.trans?'none':'block';
+  document.getElementById('pTransBtn').textContent=b.trans?'✅ 透明底色（只顯示文字）':'□ 透明底色（只顯示文字）';
 }
 
 function removeBox(id){
-  boxes=boxes.filter(b=>b.id!==id);
+  boxes=boxes.filter(x=>x.id!==id);
   document.getElementById('b'+id)?.remove();
-  if(selId===id) selId=null;
+  if(selId===id)selId=null;
+  setStatus('● 未儲存','unsaved');
 }
 function delSel(){if(selId)removeBox(selId);}
 
-function applyToSelected(){
+// Live updates
+function liveSize(){
+  const sz=parseInt(document.getElementById('pSize').value); if(!sz||sz<6)return;
+  if(selId){
+    const b=boxes.find(x=>x.id===selId); if(!b)return;
+    b.size=sz; const sc=zoomLevel;
+    const tc=document.getElementById('b'+b.id)?.querySelector('.tc');
+    if(tc)applyTc(tc,b,sc);
+    setStatus('● 未儲存','unsaved');
+  }
+}
+function liveColor(){
+  const fg=document.getElementById('pFg').value;
+  if(selId){const b=boxes.find(x=>x.id===selId);if(!b)return;b.fg=fg;const tc=document.getElementById('b'+b.id)?.querySelector('.tc');if(tc)tc.style.color=fg;}
+}
+function liveBg(){
+  const bg=document.getElementById('pBg').value;
+  if(selId){const b=boxes.find(x=>x.id===selId);if(!b)return;b.bg=bg;const inner=document.getElementById('b'+b.id)?.querySelector('.tbi');if(inner&&!b.trans)inner.style.background=bg;}
+}
+
+function toggleBold(){
+  isBold=!isBold;
+  document.getElementById('pBold').className='tbtn2'+(isBold?' on':'');
+}
+function toggleTrans(){
+  isTrans=!isTrans;
+  const btn=document.getElementById('pTransBtn');
+  btn.className='tbtn2'+(isTrans?' on':'');
+  btn.textContent=isTrans?'✅ 透明底色（只顯示文字）':'□ 透明底色（只顯示文字）';
+  document.getElementById('bgRow').style.display=isTrans?'none':'block';
+  // Live update selected box
+  if(selId){
+    const b=boxes.find(x=>x.id===selId); if(!b)return;
+    b.trans=isTrans;
+    const inner=document.getElementById('b'+b.id)?.querySelector('.tbi');
+    if(inner)inner.style.background=b.trans?'transparent':b.bg;
+  }
+}
+
+function applyToSel(){
   if(!selId){alert('請先選取一個文字方塊！');return;}
   const b=boxes.find(x=>x.id===selId); if(!b)return;
   b.text=document.getElementById('pText').value||b.text;
@@ -569,73 +709,95 @@ function applyToSelected(){
   b.fg=document.getElementById('pFg').value;
   b.bg=document.getElementById('pBg').value;
   b.align=document.getElementById('pAlign').value;
-  b.bold=isBold;
-  b.transparent=panelTransparent;
-  const sc=getScale();
-  const el=document.getElementById('b'+b.id); if(!el)return;
-  styleEl(el,b,sc);
-  const tc=el.querySelector('.tc'); if(tc){styleTc(tc,b,sc); tc.textContent=b.text;}
+  b.bold=isBold; b.trans=isTrans;
+  const sc=zoomLevel, el=document.getElementById('b'+b.id); if(!el)return;
+  const inner=el.querySelector('.tbi'); if(inner)inner.style.background=b.trans?'transparent':b.bg;
+  const tc=el.querySelector('.tc'); if(tc){applyTc(tc,b,sc);tc.textContent=b.text;}
+  setStatus('● 未儲存','unsaved');
 }
 
-function toggleBold(){
-  isBold=!isBold;
-  document.getElementById('pBold').className='bold-btn'+(isBold?' on':'');
-  updatePreview();
-}
-
-function togglePanelTransparent(){
-  panelTransparent=!panelTransparent;
-  document.getElementById('pTransBtn').className='bold-btn'+(panelTransparent?' on':'');
-}
-
-function undo(){
-  if(coverRects.length){
-    const last=coverRects.pop();
-    const associated=boxes.find(b=>Math.abs(b.x-last.x)<3&&Math.abs(b.y-last.y)<3);
-    if(associated)removeBox(associated.id);
-    drawBase();
-  }
-}
-
-// ── Drag / Resize ──
+// ── Drag ──
 document.addEventListener('mousemove',e=>{
+  if(panStart)return;
   if(dragId){
     const b=boxes.find(x=>x.id===dragId); if(!b)return;
-    const sr=stage.getBoundingClientRect(), sc=getScale();
+    const sr=stage.getBoundingClientRect(),sc=zoomLevel;
     b.x=Math.max(0,Math.min((e.clientX-sr.left-dragOx)/sc,baseCv.width-b.w));
     b.y=Math.max(0,Math.min((e.clientY-sr.top-dragOy)/sc,baseCv.height-b.h));
     const el=document.getElementById('b'+b.id);
-    if(el){el.style.left=Math.round(b.x*sc)+'px'; el.style.top=Math.round(b.y*sc)+'px';}
-  }
-  if(resId){
-    const b=boxes.find(x=>x.id===resId); if(!b)return;
-    const sc=getScale();
-    b.w=Math.max(30,resW0+(e.clientX-rMx)/sc);
-    b.h=Math.max(18,resH0+(e.clientY-rMy)/sc);
-    const el=document.getElementById('b'+b.id);
-    if(el){
-      el.style.width=Math.round(b.w*sc)+'px'; el.style.height=Math.round(b.h*sc)+'px';
-      const tc=el.querySelector('.tc'); if(tc)styleTc(tc,b,sc);
-    }
+    if(el){el.style.left=Math.round(b.x*sc)+'px';el.style.top=Math.round(b.y*sc)+'px';}
+    setStatus('● 未儲存','unsaved');
   }
 });
-document.addEventListener('mouseup',()=>{dragId=null;resId=null;});
-document.getElementById('cvwrap').addEventListener('mousedown',e=>{
-  if(!e.target.closest('.tbox')&&!e.target.closest('#confirm-popup')){
+document.addEventListener('mouseup',()=>{dragId=null;});
+cvwrap.addEventListener('mousedown',e=>{
+  if(!e.target.closest('.tbox')&&!e.target.closest('#epopup')){
     document.querySelectorAll('.tbox').forEach(el=>el.classList.remove('sel'));
     selId=null;
   }
 });
 
+// ── Undo ──
+function undoLast(){
+  if(coverRects.length){
+    const last=coverRects.pop();
+    const assoc=boxes.find(b=>Math.abs(b.x-last.x)<3&&Math.abs(b.y-last.y)<3);
+    if(assoc)removeBox(assoc.id);
+    drawBase(); setStatus('● 未儲存','unsaved');
+  }
+}
+
+// ── Save / Load ──
+function saveProject(){
+  if(!img){alert('請先載入圖片！');return;}
+  try{
+    const data={imgSrc:baseCv.toDataURL('image/png',0.85),coverRects,boxes,idCtr};
+    localStorage.setItem('imgEd',JSON.stringify(data));
+    setStatus('✓ 已儲存','saved');
+    alert('✅ 專案已儲存！下次點「載入已儲存專案」可繼續編輯。');
+  }catch(e){
+    // If too large for localStorage, offer download instead
+    const data=JSON.stringify({coverRects,boxes,idCtr});
+    const a=document.createElement('a');
+    a.download='project_'+Date.now()+'.json';
+    a.href='data:application/json;charset=utf-8,'+encodeURIComponent(data);
+    a.click();
+    alert('圖片太大，已改為下載 project.json 備份設定！下次開啟後請先載入同一張原圖，再載入 json。');
+  }
+}
+
+function loadProject(){
+  const raw=localStorage.getItem('imgEd');
+  if(!raw){alert('沒有找到已儲存的專案！');return;}
+  const data=JSON.parse(raw);
+  const im=new Image();
+  im.onload=()=>{
+    img=im; srcDataUrl=data.imgSrc;
+    baseCv.width=uiCv.width=hitCv.width=im.width;
+    baseCv.height=uiCv.height=hitCv.height=im.height;
+    stage.style.width=im.width+'px'; stage.style.height=im.height+'px';
+    coverRects=data.coverRects||[]; boxes=data.boxes||[]; idCtr=data.idCtr||0;
+    tbLayer.innerHTML=''; noimg.style.display='none'; stage.style.display='block';
+    drawBase(); applyZoom();
+    boxes.forEach(b=>tbLayer.appendChild(mkEl(b)));
+    setStatus('✓ 已載入','saved');
+  };
+  im.src=data.imgSrc;
+}
+
 // ── Export ──
 function doExport(type){
   if(!img){alert('請先載入圖片！');return;}
+  // Build final canvas
   const ec=document.createElement('canvas');
   ec.width=baseCv.width; ec.height=baseCv.height;
   const ex=ec.getContext('2d');
+  // Draw base (with cover rects already painted)
   ex.drawImage(baseCv,0,0);
+  // Draw text boxes
   boxes.forEach(b=>{
-    if(!b.transparent){ex.fillStyle=b.bg; ex.fillRect(b.x,b.y,b.w,b.h);}
+    if(!b.trans){ex.fillStyle=b.bg;ex.fillRect(b.x,b.y,b.w,b.h);}
+    if(!b.text)return;
     ex.fillStyle=b.fg;
     ex.font=(b.bold?'700 ':'400 ')+b.size+'px '+b.font;
     ex.textAlign=b.align==='left'?'left':b.align==='right'?'right':'center';
@@ -645,13 +807,14 @@ function doExport(type){
     let tx=b.align==='center'?b.x+b.w/2:b.align==='left'?b.x+8:b.x+b.w-8;
     lines.forEach(l=>{ex.fillText(l,tx,ty);ty+=lh;});
   });
+  const mime=type==='png'?'image/png':'image/jpeg';
+  const dataUrl=ec.toDataURL(mime,0.95);
   const a=document.createElement('a');
-  a.download='edited.'+type;
-  a.href=ec.toDataURL(type==='png'?'image/png':'image/jpeg',0.95);
-  a.click();
+  a.href=dataUrl; a.download='edited_'+Date.now()+'.'+type;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
-setMode('sel');
+setMode('idle');
 </script>
 </body>
 </html>
