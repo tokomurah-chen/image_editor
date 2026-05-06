@@ -23,8 +23,6 @@ label.tbtn{display:inline-flex;align-items:center;}
 .tsep{width:1px;height:26px;background:#374151;margin:0 3px;flex-shrink:0;}
 #zdisplay{font-size:12px;color:#9ca3af;min-width:42px;}
 #sstatus{font-size:11px;margin-left:auto;white-space:nowrap;padding:4px 10px;border-radius:5px;background:#1f2937;color:#6b7280;}
-#sstatus.unsaved{color:#f87171;background:#3b1f1f;}
-#sstatus.saved{color:#4ade80;background:#1a3b2a;}
 
 /* Layout */
 #main{position:fixed;top:var(--th);left:0;right:var(--pw);bottom:0;overflow:hidden;background:#2d2d3f;}
@@ -35,7 +33,7 @@ label.tbtn{display:inline-flex;align-items:center;}
 #ui-canvas{position:absolute;top:0;left:0;pointer-events:none;}
 #hit-canvas{position:absolute;top:0;left:0;}
 #tb-layer{position:absolute;top:0;left:0;width:100%;height:100%;}
-#noimg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#6b7280;pointer-events:none;}
+#noimg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#6b7280;pointer-events:none;z-index:1;background:#2d2d3f;}
 
 /* Panel */
 #panel{position:fixed;top:var(--th);right:0;bottom:0;width:var(--pw);background:#1f2937;border-left:2px solid #374151;display:flex;flex-direction:column;overflow:hidden;z-index:90;}
@@ -117,8 +115,8 @@ label.tbtn{display:inline-flex;align-items:center;}
 
 <!-- Toolbar -->
 <div id="toolbar">
-  <input type="file" id="fi" accept="image/*">
-  <label class="tbtn blue" for="fi">📁 載入圖片</label>
+  <input type="file" id="fi" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,image/*" style="display:none;">
+  <label class="tbtn blue" for="fi" style="cursor:pointer;">📁 載入圖片</label>
   <div class="tsep"></div>
   <button class="tbtn gray" id="btnPan" onclick="togglePan()">🖐 拖拉視圖</button>
   <button class="tbtn gray" onclick="zoomIn()">🔍＋</button>
@@ -271,7 +269,7 @@ label.tbtn{display:inline-flex;align-items:center;}
     <!-- Step 5: Adjust & Export -->
     <div class="sb open">
       <div class="sh s5" onclick="toggleSB(this)">
-        <span class="sn">⑤</span><span class="st">調整・儲存・輸出</span><span class="sa">▼</span>
+        <span class="sn">⑤</span><span class="st">調整・輸出</span><span class="sa">▼</span>
       </div>
       <div class="sbody">
         <div class="hint">
@@ -279,7 +277,7 @@ label.tbtn{display:inline-flex;align-items:center;}
           <b>雙擊方塊</b> → 直接編輯文字<br>
           <b>改數字大小</b> → 即時更新選取中的方塊<br>
           <b>右下角橘點</b> → 拖曳調整框框大小<br>
-          <b>複製/貼上</b> → 快速複製相同格式的方塊<br>
+          <b>Ctrl+C / Ctrl+V</b> → 複製貼上方塊<br>
           <b>Space＋拖曳</b> → 移動畫布視野
         </div>
         <button class="pbtn" onclick="applyToSel()" style="background:#1d4ed8;">🔄 套用設定到選取方塊</button>
@@ -290,8 +288,7 @@ label.tbtn{display:inline-flex;align-items:center;}
         <button class="pbtn" onclick="delSel()" style="background:#991b1b;margin-top:5px;">🗑 刪除選取方塊</button>
         <button class="pbtn" onclick="undoLast()" style="background:#374151;margin-top:5px;">↩ 復原上一步</button>
         <div style="height:1px;background:#374151;margin:6px 0;"></div>
-        <button class="pbtn" onclick="saveProject()" style="background:#065f46;">💾 儲存專案（可繼續編輯）</button>
-        <button class="pbtn" onclick="loadProject()" style="background:#1e3a5f;margin-top:5px;">📂 載入已儲存專案</button>
+
         <div style="display:flex;gap:6px;margin-top:8px;">
           <button class="bigbtn" onclick="doExport('png')" style="flex:1;background:#5b21b6;font-size:14px;">⬇ PNG</button>
           <button class="bigbtn" onclick="doExport('jpg')" style="flex:1;background:#7c2d12;font-size:14px;">⬇ JPG</button>
@@ -415,47 +412,66 @@ function liveFont(){
   const sc=zoomLevel;
   const tc=document.getElementById('b'+b.id)?.querySelector('.tc');
   if(tc) applyTc(tc,b,sc);
-  setStatus('● 未儲存','unsaved');
+  ;
 }
 
 // ── Step accordion ──
 function toggleSB(header){header.closest('.sb').classList.toggle('open');}
 
 // ── Status ──
-function setStatus(txt,type='normal'){
+function setStatus(txt){
   sstatus.textContent=txt;
-  sstatus.className='';
-  if(type==='unsaved') sstatus.classList.add('unsaved');
-  if(type==='saved') sstatus.classList.add('saved');
 }
 
 // ── Load image ──
 document.getElementById('fi').onchange=e=>{
   const f=e.target.files[0]; if(!f)return;
+  // Validate file type
+  if(!f.type.startsWith('image/')){
+    alert('請選擇圖片檔案（JPG、PNG 等）');
+    return;
+  }
   const reader=new FileReader();
+  reader.onerror=()=>alert('圖片讀取失敗，請重試！');
   reader.onload=ev=>{
     srcDataUrl=ev.target.result;
-    img=new Image();
-    img.onload=()=>{
+    const newImg=new Image();
+    newImg.onerror=()=>alert('圖片載入失敗，請確認檔案格式正確！');
+    newImg.onload=()=>{
+      img=newImg;
+      // Reset canvas sizes
       baseCv.width=uiCv.width=hitCv.width=img.width;
       baseCv.height=uiCv.height=hitCv.height=img.height;
-      stage.style.width=img.width+'px'; stage.style.height=img.height+'px';
+      stage.style.width=img.width+'px';
+      stage.style.height=img.height+'px';
       coverRects=[]; boxes=[]; selId=null; curSel=null;
       tbLayer.innerHTML='';
-      noimg.style.display='none'; stage.style.display='block';
-      drawBase(); applyZoom();
-      setStatus('圖片已載入','normal');
+      noimg.style.display='none';
+      stage.style.display='block';
+      // Small delay to ensure DOM is ready
+      requestAnimationFrame(()=>{
+        drawBase();
+        applyZoom();
+        setStatus('圖片已載入 ✓');
+      });
     };
-    img.src=srcDataUrl;
+    newImg.src=srcDataUrl;
   };
   reader.readAsDataURL(f);
+  // Reset file input so same file can be re-selected
+  e.target.value='';
 };
 
 function drawBase(){
   if(!img)return;
-  bCtx.clearRect(0,0,baseCv.width,baseCv.height);
-  bCtx.drawImage(img,0,0);
-  coverRects.forEach(r=>{bCtx.fillStyle=r.c; bCtx.fillRect(r.x,r.y,r.w,r.h);});
+  try{
+    bCtx.clearRect(0,0,baseCv.width,baseCv.height);
+    bCtx.drawImage(img,0,0);
+    coverRects.forEach(r=>{bCtx.fillStyle=r.c; bCtx.fillRect(r.x,r.y,r.w,r.h);});
+  }catch(e){
+    console.error('畫布繪製失敗:',e);
+    alert('圖片繪製失敗，請重新載入圖片！錯誤：'+e.message);
+  }
 }
 
 function drawUI(){
@@ -471,7 +487,9 @@ function drawUI(){
 
 // ── Zoom ──
 function applyZoom(){
+  if(!img) return;
   stage.style.transform=`scale(${zoomLevel})`;
+  stage.style.transformOrigin='top left';
   document.getElementById('zdisplay').textContent=Math.round(zoomLevel*100)+'%';
   syncAllPos();
 }
@@ -535,10 +553,16 @@ function escDrop(e){if(e.key==='Escape')exitDrop();}
 function exitDrop(){document.removeEventListener('keydown',escDrop);dp.style.display='none';setMode(prevMode);}
 
 function sample(ix,iy){
-  const x=Math.max(0,Math.min(Math.round(ix),baseCv.width-1));
-  const y=Math.max(0,Math.min(Math.round(iy),baseCv.height-1));
-  const d=bCtx.getImageData(x,y,1,1).data;
-  return '#'+[d[0],d[1],d[2]].map(v=>v.toString(16).padStart(2,'0')).join('');
+  try{
+    const x=Math.max(0,Math.min(Math.round(ix),baseCv.width-1));
+    const y=Math.max(0,Math.min(Math.round(iy),baseCv.height-1));
+    const d=bCtx.getImageData(x,y,1,1).data;
+    return '#'+[d[0],d[1],d[2]].map(v=>v.toString(16).padStart(2,'0')).join('');
+  }catch(e){
+    // CORS or tainted canvas - return a safe default
+    console.warn('無法讀取顏色（安全限制）',e);
+    return '#ffffff';
+  }
 }
 function syncHex(id,hid){document.getElementById(hid).textContent=document.getElementById(id).value;}
 
@@ -620,7 +644,7 @@ function confirmEP(){
   coverRects.push({...sel,c:bg});
   // Create transparent text box on top → user types new text
   makeBox(sel.x,sel.y,sel.w,sel.h,bg,true);
-  setStatus('● 未儲存','unsaved');
+  ;
 }
 
 // ── Text box ──
@@ -652,7 +676,7 @@ function addManual(){
   if(!img){alert('請先載入圖片！');return;}
   const bg=document.getElementById('pBg').value;
   makeBox(img.width*0.2,img.height*0.4,220,70,bg,isTrans);
-  setStatus('● 未儲存','unsaved');
+  ;
 }
 
 function mkEl(b){
@@ -670,7 +694,7 @@ function mkEl(b){
   applyTc(tc,b,sc);
   tc.contentEditable='false';
   tc.textContent=b.text||'';
-  tc.oninput=()=>{b.text=tc.innerText;setStatus('● 未儲存','unsaved');};
+  tc.oninput=()=>{b.text=tc.innerText;;};
   tc.onblur=()=>{wrap.classList.remove('editing');tc.contentEditable='false';tc.style.cursor='move';b.text=tc.innerText;};
   inner.appendChild(tc);
   wrap.appendChild(inner);
@@ -752,7 +776,7 @@ function removeBox(id){
   boxes=boxes.filter(x=>x.id!==id);
   document.getElementById('b'+id)?.remove();
   if(selId===id)selId=null;
-  setStatus('● 未儲存','unsaved');
+  ;
 }
 function delSel(){if(selId)removeBox(selId);}
 
@@ -764,7 +788,7 @@ function liveSize(){
     b.size=sz; const sc=zoomLevel;
     const tc=document.getElementById('b'+b.id)?.querySelector('.tc');
     if(tc)applyTc(tc,b,sc);
-    setStatus('● 未儲存','unsaved');
+    ;
   }
 }
 function liveColor(){
@@ -808,7 +832,7 @@ function applyToSel(){
   const sc=zoomLevel, el=document.getElementById('b'+b.id); if(!el)return;
   const inner=el.querySelector('.tbi'); if(inner)inner.style.background=b.trans?'transparent':b.bg;
   const tc=el.querySelector('.tc'); if(tc){applyTc(tc,b,sc);tc.textContent=b.text;}
-  setStatus('● 未儲存','unsaved');
+  ;
 }
 
 // ── Drag ──
@@ -827,7 +851,7 @@ document.addEventListener('mousemove',e=>{
       el.style.left = Math.round(b.x*sc)+'px';
       el.style.top  = Math.round(b.y*sc)+'px';
     }
-    setStatus('● 未儲存','unsaved');
+    ;
   }
   // Resize box
   if(resId){
@@ -844,7 +868,7 @@ document.addEventListener('mousemove',e=>{
       const tc=el.querySelector('.tc');
       if(tc) applyTc(tc,b,sc);
     }
-    setStatus('● 未儲存','unsaved');
+    ;
   }
 });
 document.addEventListener('mouseup',()=>{dragId=null; resId=null;});
@@ -861,46 +885,8 @@ function undoLast(){
     const last=coverRects.pop();
     const assoc=boxes.find(b=>Math.abs(b.x-last.x)<3&&Math.abs(b.y-last.y)<3);
     if(assoc)removeBox(assoc.id);
-    drawBase(); setStatus('● 未儲存','unsaved');
+    drawBase(); ;
   }
-}
-
-// ── Save / Load ──
-function saveProject(){
-  if(!img){alert('請先載入圖片！');return;}
-  try{
-    const data={imgSrc:baseCv.toDataURL('image/png',0.85),coverRects,boxes,idCtr};
-    localStorage.setItem('imgEd',JSON.stringify(data));
-    setStatus('✓ 已儲存','saved');
-    alert('✅ 專案已儲存！下次點「載入已儲存專案」可繼續編輯。');
-  }catch(e){
-    // If too large for localStorage, offer download instead
-    const data=JSON.stringify({coverRects,boxes,idCtr});
-    const a=document.createElement('a');
-    a.download='project_'+Date.now()+'.json';
-    a.href='data:application/json;charset=utf-8,'+encodeURIComponent(data);
-    a.click();
-    alert('圖片太大，已改為下載 project.json 備份設定！下次開啟後請先載入同一張原圖，再載入 json。');
-  }
-}
-
-function loadProject(){
-  const raw=localStorage.getItem('imgEd');
-  if(!raw){alert('沒有找到已儲存的專案！');return;}
-  const data=JSON.parse(raw);
-  const im=new Image();
-  im.onload=()=>{
-    img=im; srcDataUrl=data.imgSrc;
-    baseCv.width=uiCv.width=hitCv.width=im.width;
-    baseCv.height=uiCv.height=hitCv.height=im.height;
-    stage.style.width=im.width+'px'; stage.style.height=im.height+'px';
-    coverRects=data.coverRects||[]; boxes=data.boxes||[]; idCtr=data.idCtr||0;
-    tbLayer.innerHTML=''; noimg.style.display='none'; stage.style.display='block';
-    drawBase(); applyZoom();
-    boxes.forEach(b=>tbLayer.appendChild(mkEl(b)));
-    setStatus('✓ 已載入','saved');
-  };
-  im.src=data.imgSrc;
 }
 
 // ── Export ──
@@ -940,7 +926,7 @@ function copyBox(){
   if(!selId){alert('請先選取一個文字方塊！');return;}
   const b = boxes.find(x=>x.id===selId); if(!b)return;
   clipboard = JSON.parse(JSON.stringify(b)); // deep copy
-  setStatus('✅ 已複製！點「貼上方塊」放置','normal');
+  setStatus('✅ 已複製！點「貼上方塊」放置');
 }
 
 function pasteBox(){
@@ -950,7 +936,7 @@ function pasteBox(){
   boxes.push(b);
   tbLayer.appendChild(mkEl(b));
   selectBox(b.id);
-  setStatus('● 未儲存','unsaved');
+  ;
 }
 
 document.addEventListener('keydown', e=>{
