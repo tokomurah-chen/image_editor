@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>圖片文字編輯器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Noto+Serif+TC:wght@400;700&family=LXGW+WenKai+TC&family=Zen+Old+Mincho&display=swap" rel="stylesheet">
 <style>
 :root{--pw:340px;--th:52px;}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -88,6 +90,9 @@ label.tbtn{display:inline-flex;align-items:center;}
 .tbox.editing .tc{cursor:text;}
 .xbtn{position:absolute;top:-10px;right:-10px;width:22px;height:22px;background:#ef4444;color:#fff;border-radius:50%;font-size:13px;line-height:22px;text-align:center;cursor:pointer;display:none;font-weight:900;z-index:20;pointer-events:auto;box-shadow:0 2px 5px rgba(0,0,0,.4);}
 .tbox.sel .xbtn{display:block;}
+/* Resize handle */
+.rhdl{position:absolute;bottom:-7px;right:-7px;width:16px;height:16px;background:#f97316;border:2px solid #fff;border-radius:3px;cursor:se-resize;display:none;z-index:20;pointer-events:auto;box-shadow:0 2px 5px rgba(0,0,0,.4);}
+.tbox.sel .rhdl{display:block;}
 
 /* Dropper */
 #dp{display:none;position:fixed;pointer-events:none;z-index:9999;background:#111;border:2px solid #fff;border-radius:5px;padding:4px 8px;font-size:12px;color:#fff;font-family:monospace;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(0,0,0,.5);}
@@ -206,7 +211,17 @@ label.tbtn{display:inline-flex;align-items:center;}
         <span class="sn">③</span><span class="st">字型與大小</span><span class="sa">▼</span>
       </div>
       <div class="sbody">
-        <div class="fld"><label>字型</label><select id="pFont"></select></div>
+        <div class="fld">
+          <label>字型（✓ = 系統有安裝）</label>
+          <select id="pFont" onchange="liveFont()"></select>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:2px;">
+          <input type="file" id="fontFile" accept=".ttf,.otf,.woff,.woff2" style="display:none;" onchange="loadCustomFont(this)">
+          <label for="fontFile" style="flex:1;padding:7px 10px;background:#1e3a5f;color:#93c5fd;border:1.5px dashed #3b82f6;border-radius:6px;cursor:pointer;font-size:12px;text-align:center;font-weight:700;">
+            📂 上傳自訂字型檔 (.ttf/.otf)
+          </label>
+        </div>
+        <div id="customFontInfo" style="display:none;font-size:11px;color:#4ade80;padding:4px 6px;background:#052e16;border-radius:4px;">✅ 自訂字型已載入</div>
         <div style="display:flex;gap:7px;align-items:flex-end;">
           <div class="fld" style="flex:1;">
             <label>大小 (px)　→　即時更新</label>
@@ -263,9 +278,15 @@ label.tbtn{display:inline-flex;align-items:center;}
           <b>點選方塊</b> → 移動位置（拖曳）<br>
           <b>雙擊方塊</b> → 直接編輯文字<br>
           <b>改數字大小</b> → 即時更新選取中的方塊<br>
+          <b>右下角橘點</b> → 拖曳調整框框大小<br>
+          <b>複製/貼上</b> → 快速複製相同格式的方塊<br>
           <b>Space＋拖曳</b> → 移動畫布視野
         </div>
         <button class="pbtn" onclick="applyToSel()" style="background:#1d4ed8;">🔄 套用設定到選取方塊</button>
+        <div style="display:flex;gap:5px;margin-top:5px;">
+          <button class="pbtn" onclick="copyBox()" style="flex:1;background:#0f766e;">📋 複製方塊</button>
+          <button class="pbtn" onclick="pasteBox()" style="flex:1;background:#0e7490;">📌 貼上方塊</button>
+        </div>
         <button class="pbtn" onclick="delSel()" style="background:#991b1b;margin-top:5px;">🗑 刪除選取方塊</button>
         <button class="pbtn" onclick="undoLast()" style="background:#374151;margin-top:5px;">↩ 復原上一步</button>
         <div style="height:1px;background:#374151;margin:6px 0;"></div>
@@ -303,41 +324,99 @@ let mode='idle'; // idle | sel | dropper
 let dropTarget=null, prevMode='idle';
 let drawing=false, sx,sy, curSel=null;
 let dragId=null, dragOx,dragOy;
+let resId=null, resStartX,resStartY,resOrigW,resOrigH,resOrigX,resOrigY;
 let isBold=false, isTrans=true;
 let pendingSel=null;
 let zoomLevel=1;
 let isPanMode=false, panStart=null, panScrollStart=null, spaceDown=false;
 
 // ── Fonts ──
+const GOOGLE_FONTS=[
+  {n:'【Google】思源黑體（推薦）',v:"'Noto Sans TC',sans-serif"},
+  {n:'【Google】思源宋體',v:"'Noto Serif TC',serif"},
+  {n:'【Google】霞鶩文楷',v:"'LXGW WenKai TC',cursive"},
+  {n:'【Google】Zen Old Mincho',v:"'Zen Old Mincho',serif"},
+];
+const SYSTEM_FONTS=[
+  {n:'微軟正黑體',v:"'Microsoft JhengHei',sans-serif"},
+  {n:'微軟雅黑',v:"'Microsoft YaHei',sans-serif"},
+  {n:'標楷體',v:"'DFKai-SB','BiauKai',serif"},
+  {n:'新細明體',v:"'PMingLiU','MingLiU',serif"},
+  {n:'蘋方-繁',v:"'PingFang TC',sans-serif"},
+  {n:'黑體-繁',v:"'Heiti TC',sans-serif"},
+  {n:'Arial',v:"Arial,sans-serif"},
+  {n:'Arial Black',v:"'Arial Black',sans-serif"},
+  {n:'Verdana',v:"Verdana,sans-serif"},
+  {n:'Georgia',v:"Georgia,serif"},
+  {n:'Times New Roman',v:"'Times New Roman',serif"},
+  {n:'Impact',v:"Impact,sans-serif"},
+  {n:'Tahoma',v:"Tahoma,sans-serif"},
+  {n:'Courier New',v:"'Courier New',monospace"},
+];
+
 (function(){
   const cv=document.createElement('canvas'); cv.width=200; cv.height=30;
   const ctx=cv.getContext('2d');
   ctx.font='20px monospace';
   const base=ctx.measureText('測試ABCabc').width;
-  const FONTS=[
-    {n:'微軟正黑體',v:"'Microsoft JhengHei','Noto Sans TC',sans-serif"},
-    {n:'微軟雅黑',v:"'Microsoft YaHei',sans-serif"},
-    {n:'標楷體',v:"'DFKai-SB','BiauKai',serif"},
-    {n:'新細明體',v:"'PMingLiU','MingLiU',serif"},
-    {n:'蘋方-繁',v:"'PingFang TC',sans-serif"},
-    {n:'Arial',v:"Arial,sans-serif"},
-    {n:'Arial Black',v:"'Arial Black',sans-serif"},
-    {n:'Verdana',v:"Verdana,sans-serif"},
-    {n:'Georgia',v:"Georgia,serif"},
-    {n:'Times New Roman',v:"'Times New Roman',serif"},
-    {n:'Impact',v:"Impact,sans-serif"},
-    {n:'Tahoma',v:"Tahoma,sans-serif"},
-    {n:'Courier New',v:"'Courier New',monospace"},
-  ];
   const sel=document.getElementById('pFont');
-  FONTS.forEach(f=>{
+
+  // Add Google Fonts group
+  const gGrp=document.createElement('optgroup');
+  gGrp.label='── Google 網路字型 ──';
+  GOOGLE_FONTS.forEach(f=>{
+    const opt=document.createElement('option');
+    opt.value=f.v; opt.textContent=f.n;
+    gGrp.appendChild(opt);
+  });
+  sel.appendChild(gGrp);
+
+  // Add system fonts group
+  const sGrp=document.createElement('optgroup');
+  sGrp.label='── 系統字型 ──';
+  SYSTEM_FONTS.forEach(f=>{
     ctx.font='20px '+f.v+',monospace';
     const w=ctx.measureText('測試ABCabc').width;
     const opt=document.createElement('option');
     opt.value=f.v; opt.textContent=f.n+(w!==base?' ✓':'');
-    sel.appendChild(opt);
+    sGrp.appendChild(opt);
   });
+  sel.appendChild(sGrp);
 })();
+
+// Custom font upload
+function loadCustomFont(input){
+  const f=input.files[0]; if(!f)return;
+  const fontName='CustomFont_'+Date.now();
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const ff=new FontFace(fontName, ev.target.result);
+    ff.load().then(loaded=>{
+      document.fonts.add(loaded);
+      const sel=document.getElementById('pFont');
+      // Add to top of list
+      const opt=document.createElement('option');
+      opt.value="'"+fontName+"',sans-serif";
+      opt.textContent='⭐ '+f.name.replace(/\.[^.]+$/,'')+'（自訂）';
+      sel.insertBefore(opt, sel.firstChild);
+      sel.value=opt.value;
+      document.getElementById('customFontInfo').style.display='block';
+      document.getElementById('customFontInfo').textContent='✅ 已載入：'+f.name;
+      liveFont();
+    }).catch(()=>alert('字型載入失敗，請確認檔案格式正確'));
+  };
+  reader.readAsArrayBuffer(f);
+}
+
+function liveFont(){
+  if(!selId)return;
+  const b=boxes.find(x=>x.id===selId); if(!b)return;
+  b.font=document.getElementById('pFont').value;
+  const sc=zoomLevel;
+  const tc=document.getElementById('b'+b.id)?.querySelector('.tc');
+  if(tc) applyTc(tc,b,sc);
+  setStatus('● 未儲存','unsaved');
+}
 
 // ── Step accordion ──
 function toggleSB(header){header.closest('.sb').classList.toggle('open');}
@@ -513,7 +592,7 @@ hitCv.addEventListener('mouseup',e=>{
       document.getElementById('epBgHex').textContent=h;
       updateEPrev();
       epopup.style.display='block';
-      setMode('idle');
+
       curSel=null; drawUI();
     } else {
       curSel=null; drawUI();
@@ -602,6 +681,18 @@ function mkEl(b){
   xb.onmousedown=ev=>{ev.stopPropagation();removeBox(b.id);};
   wrap.appendChild(xb);
 
+  // Resize handle (bottom-right)
+  const rh=document.createElement('div');
+  rh.className='rhdl'; rh.title='拖曳調整大小';
+  rh.onmousedown=ev=>{
+    ev.stopPropagation(); ev.preventDefault();
+    resId=b.id;
+    resStartX=ev.clientX; resStartY=ev.clientY;
+    resOrigW=b.w; resOrigH=b.h;
+    resOrigX=b.x; resOrigY=b.y;
+  };
+  wrap.appendChild(rh);
+
   // Double click = edit
   wrap.ondblclick=ev=>{
     ev.stopPropagation(); selectBox(b.id);
@@ -612,10 +703,14 @@ function mkEl(b){
   // Drag
   wrap.onmousedown=ev=>{
     if(ev.target.classList.contains('xbtn'))return;
+    if(ev.target.classList.contains('rhdl'))return;
     if(wrap.classList.contains('editing'))return;
     ev.preventDefault(); selectBox(b.id);
-    const r=wrap.getBoundingClientRect();
-    dragId=b.id; dragOx=ev.clientX-r.left; dragOy=ev.clientY-r.top;
+    // Store offset in IMAGE coordinates so movement is 1:1 regardless of zoom
+    const sr=stage.getBoundingClientRect();
+    dragId=b.id;
+    dragOx=( ev.clientX - sr.left ) / zoomLevel - b.x;
+    dragOy=( ev.clientY - sr.top  ) / zoomLevel - b.y;
   };
   return wrap;
 }
@@ -721,15 +816,38 @@ document.addEventListener('mousemove',e=>{
   if(panStart)return;
   if(dragId){
     const b=boxes.find(x=>x.id===dragId); if(!b)return;
-    const sr=stage.getBoundingClientRect(),sc=zoomLevel;
-    b.x=Math.max(0,Math.min((e.clientX-sr.left-dragOx)/sc,baseCv.width-b.w));
-    b.y=Math.max(0,Math.min((e.clientY-sr.top-dragOy)/sc,baseCv.height-b.h));
+    const sr=stage.getBoundingClientRect(), sc=zoomLevel;
+    // Convert mouse to image coords, subtract stored offset
+    const newX = (e.clientX - sr.left) / sc - dragOx;
+    const newY = (e.clientY - sr.top ) / sc - dragOy;
+    b.x = Math.max(0, Math.min(newX, baseCv.width  - b.w));
+    b.y = Math.max(0, Math.min(newY, baseCv.height - b.h));
     const el=document.getElementById('b'+b.id);
-    if(el){el.style.left=Math.round(b.x*sc)+'px';el.style.top=Math.round(b.y*sc)+'px';}
+    if(el){
+      el.style.left = Math.round(b.x*sc)+'px';
+      el.style.top  = Math.round(b.y*sc)+'px';
+    }
+    setStatus('● 未儲存','unsaved');
+  }
+  // Resize box
+  if(resId){
+    const b=boxes.find(x=>x.id===resId); if(!b)return;
+    const sc=zoomLevel;
+    const dx=(e.clientX-resStartX)/sc;
+    const dy=(e.clientY-resStartY)/sc;
+    b.w=Math.max(40,resOrigW+dx);
+    b.h=Math.max(20,resOrigH+dy);
+    const el=document.getElementById('b'+b.id);
+    if(el){
+      el.style.width=Math.round(b.w*sc)+'px';
+      el.style.height=Math.round(b.h*sc)+'px';
+      const tc=el.querySelector('.tc');
+      if(tc) applyTc(tc,b,sc);
+    }
     setStatus('● 未儲存','unsaved');
   }
 });
-document.addEventListener('mouseup',()=>{dragId=null;});
+document.addEventListener('mouseup',()=>{dragId=null; resId=null;});
 cvwrap.addEventListener('mousedown',e=>{
   if(!e.target.closest('.tbox')&&!e.target.closest('#epopup')){
     document.querySelectorAll('.tbox').forEach(el=>el.classList.remove('sel'));
@@ -813,6 +931,34 @@ function doExport(type){
   a.href=dataUrl; a.download='edited_'+Date.now()+'.'+type;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
+
+
+// ── Copy / Paste ──
+let clipboard = null;
+
+function copyBox(){
+  if(!selId){alert('請先選取一個文字方塊！');return;}
+  const b = boxes.find(x=>x.id===selId); if(!b)return;
+  clipboard = JSON.parse(JSON.stringify(b)); // deep copy
+  setStatus('✅ 已複製！點「貼上方塊」放置','normal');
+}
+
+function pasteBox(){
+  if(!clipboard){alert('請先複製一個方塊！');return;}
+  idCtr++;
+  const b = {...clipboard, id:idCtr, x:clipboard.x+24, y:clipboard.y+24};
+  boxes.push(b);
+  tbLayer.appendChild(mkEl(b));
+  selectBox(b.id);
+  setStatus('● 未儲存','unsaved');
+}
+
+document.addEventListener('keydown', e=>{
+  if((e.ctrlKey||e.metaKey) && !e.target.matches('textarea,input')){
+    if(e.key==='c'){e.preventDefault(); copyBox();}
+    if(e.key==='v'){e.preventDefault(); pasteBox();}
+  }
+});
 
 setMode('idle');
 </script>
